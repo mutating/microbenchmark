@@ -32,31 +32,50 @@ class TestScenarioGroupOperator:
         s1, s2 = make_scenario('s1'), make_scenario('s2')
         group = s1 + s2
         assert isinstance(group, ScenarioGroup)
-        assert len(group.run()) == 2
+        results = group.run()
+        assert len(results) == 2
+        assert results[0].scenario is s1
+        assert results[1].scenario is s2
 
     def test_group_plus_scenario(self) -> None:
         s1, s2, s3 = make_scenario('s1'), make_scenario('s2'), make_scenario('s3')
         group = ScenarioGroup(s1, s2) + s3
         assert isinstance(group, ScenarioGroup)
-        assert len(group.run()) == 3
+        results = group.run()
+        assert len(results) == 3
+        assert results[0].scenario is s1
+        assert results[1].scenario is s2
+        assert results[2].scenario is s3
 
     def test_scenario_plus_group(self) -> None:
         s1, s2, s3 = make_scenario('s1'), make_scenario('s2'), make_scenario('s3')
         group = s1 + ScenarioGroup(s2, s3)
         assert isinstance(group, ScenarioGroup)
-        assert len(group.run()) == 3
+        results = group.run()
+        assert len(results) == 3
+        assert results[0].scenario is s1
+        assert results[1].scenario is s2
+        assert results[2].scenario is s3
 
     def test_group_plus_group(self) -> None:
         s1, s2, s3 = make_scenario('s1'), make_scenario('s2'), make_scenario('s3')
         group = ScenarioGroup(s1) + ScenarioGroup(s2, s3)
         assert isinstance(group, ScenarioGroup)
-        assert len(group.run()) == 3
+        results = group.run()
+        assert len(results) == 3
+        assert results[0].scenario is s1
+        assert results[1].scenario is s2
+        assert results[2].scenario is s3
 
     def test_triple_sum_is_flat(self) -> None:
         s1, s2, s3 = make_scenario('s1'), make_scenario('s2'), make_scenario('s3')
         group = s1 + s2 + s3
         assert isinstance(group, ScenarioGroup)
-        assert len(group.run()) == 3
+        results = group.run()
+        assert len(results) == 3
+        assert results[0].scenario is s1
+        assert results[1].scenario is s2
+        assert results[2].scenario is s3
 
     def test_add_returns_new_group(self) -> None:
         s1, s2 = make_scenario('s1'), make_scenario('s2')
@@ -64,6 +83,8 @@ class TestScenarioGroupOperator:
         new_g = g + s2
         assert new_g is not g
         assert len(g._scenarios) == 1  # original not mutated
+        assert new_g._scenarios[0] is s1
+        assert new_g._scenarios[1] is s2
 
     def test_add_unknown_type_returns_not_implemented(self) -> None:
         g = ScenarioGroup()
@@ -123,6 +144,19 @@ class TestScenarioGroupRun:
     def test_empty_group_run_with_warmup(self) -> None:
         g = ScenarioGroup()
         assert g.run(warmup=10) == []
+
+    def test_run_negative_warmup_acts_as_zero(self) -> None:
+        counter = [0]
+
+        def fn() -> None:
+            counter[0] += 1
+
+        s = Scenario(fn, name='s', number=3)
+        g = ScenarioGroup(s)
+        results = g.run(warmup=-5)
+        assert len(results) == 1
+        assert len(results[0].durations) == 3
+        assert counter[0] == 3  # range(-5) == empty, so no warmup calls
 
     def test_run_returns_benchmark_results(self) -> None:
         s = make_scenario()

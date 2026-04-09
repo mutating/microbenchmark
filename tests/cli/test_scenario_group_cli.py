@@ -105,6 +105,37 @@ class TestScenarioGroupCliHelp:
         combined = proc.stdout + proc.stderr
         assert 'number' in combined.lower()
 
+    def test_help_mentions_max_mean(self) -> None:
+        proc = run_script(group_script(), '--help')
+        combined = proc.stdout + proc.stderr
+        assert '--max-mean' in combined
+
+    def test_help_does_not_run_benchmark(self) -> None:
+        proc = run_script(group_script(), '--help')
+        assert 'benchmark:' not in proc.stdout
+
+
+def empty_group_script() -> str:
+    return textwrap.dedent(f'''
+        import sys
+        sys.path.insert(0, {str(__import__('pathlib').Path(__file__).parent.parent.parent)!r})
+        from microbenchmark import ScenarioGroup
+
+        group = ScenarioGroup()
+        group.cli()
+    ''')
+
+
+class TestScenarioGroupCliEmptyGroup:
+    def test_empty_group_exits_0(self) -> None:
+        proc = run_script(empty_group_script())
+        assert proc.returncode == 0
+
+    def test_empty_group_no_output(self) -> None:
+        proc = run_script(empty_group_script())
+        assert proc.stdout == ''
+        assert proc.stderr == ''
+
 
 def single_scenario_script() -> str:
     return textwrap.dedent(f'''

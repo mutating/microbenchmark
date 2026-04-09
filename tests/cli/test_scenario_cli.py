@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import textwrap
@@ -54,7 +55,19 @@ class TestScenarioCliOutput:
 
     def test_cli_output_has_s_suffix(self) -> None:
         proc = run_script(scenario_script())
-        assert 's\n' in proc.stdout or proc.stdout.rstrip().endswith('s')
+        # Each value line (mean/best/worst) must end with 's'
+        lines = proc.stdout.strip().splitlines()
+        for line in lines[1:]:  # skip 'benchmark: bench' header
+            assert line.endswith('s'), f'line does not end with s: {line!r}'
+
+    def test_cli_exact_output_format(self) -> None:
+        proc = run_script(scenario_script())
+        lines = proc.stdout.strip().splitlines()
+        assert len(lines) == 4
+        assert lines[0] == 'benchmark: bench'
+        assert re.match(r'^mean:  \d+\.\d{6}s$', lines[1]), f'unexpected format: {lines[1]!r}'
+        assert re.match(r'^best:  \d+\.\d{6}s$', lines[2]), f'unexpected format: {lines[2]!r}'
+        assert re.match(r'^worst: \d+\.\d{6}s$', lines[3]), f'unexpected format: {lines[3]!r}'
 
     def test_cli_exit_code_0_by_default(self) -> None:
         proc = run_script(scenario_script())

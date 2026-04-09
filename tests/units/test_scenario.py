@@ -243,6 +243,31 @@ class TestScenarioRun:
             s.run()
         assert counter[0] == 3
 
+    def test_run_exception_during_warmup_propagates(self) -> None:
+        counter = [0]
+
+        def fn() -> None:
+            counter[0] += 1
+            if counter[0] == 2:
+                raise RuntimeError('fail in warmup')
+
+        s = Scenario(fn, name='s', number=5)
+        with pytest.raises(RuntimeError, match='fail in warmup'):
+            s.run(warmup=3)
+        assert counter[0] == 2  # stopped at 2nd warmup call
+
+    def test_run_number_one(self) -> None:
+        tick = [0]
+
+        def fake_timer() -> float:
+            tick[0] += 1
+            return float(tick[0])
+
+        s = Scenario(lambda: None, name='s', number=1, timer=fake_timer)
+        result = s.run()
+        assert len(result.durations) == 1
+        assert result.durations[0] == pytest.approx(1.0)  # end(2) - start(1) = 1
+
 
 class TestScenarioAdd:
     def test_add_scenario_returns_group(self) -> None:
