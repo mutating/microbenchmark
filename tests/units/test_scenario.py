@@ -98,6 +98,10 @@ class TestScenarioConstruction:
         with pytest.raises(ValueError, match='number'):
             Scenario(lambda: None, name='s', number=-1)
 
+    def test_name_required_raises(self) -> None:
+        with pytest.raises(TypeError):
+            Scenario(lambda: None)  # type: ignore[call-arg]
+
 
 class TestScenarioRun:
     def test_run_returns_benchmark_result(self) -> None:
@@ -146,6 +150,8 @@ class TestScenarioRun:
         assert counter[0] == 5
 
     def test_run_uses_custom_timer(self) -> None:
+        # timer produces: 0.000, 0.001, 0.002, 0.003, 0.004, 0.005, ...
+        # each measured interval: end - start = 0.001
         values = iter(t * 0.001 for t in range(200))
 
         def fake_timer() -> float:
@@ -153,9 +159,7 @@ class TestScenarioRun:
 
         s = Scenario(lambda: None, name='s', number=3, timer=fake_timer)
         result = s.run()
-        assert len(result.durations) == 3
-        for d in result.durations:
-            assert d > 0
+        assert result.durations == pytest.approx((0.001, 0.001, 0.001))
 
     def test_custom_timer_stateful(self) -> None:
         # timer is called before and after each run; warmup also consumes timer calls
@@ -202,6 +206,24 @@ class TestScenarioRun:
         s = Scenario(lambda: None, name='s', number=5)
         result = s.run()
         assert result.is_primary is True
+
+    def test_run_args_incompatible_raises_type_error(self) -> None:
+        s = Scenario(lambda: None, args=[1, 2], name='s', number=1)
+        with pytest.raises(TypeError):
+            s.run()
+
+    def test_run_exception_mid_iteration(self) -> None:
+        counter = [0]
+
+        def fn() -> None:
+            counter[0] += 1
+            if counter[0] == 3:
+                raise RuntimeError('fail on 3rd call')
+
+        s = Scenario(fn, name='s', number=5)
+        with pytest.raises(RuntimeError, match='fail on 3rd call'):
+            s.run()
+        assert counter[0] == 3
 
 
 class TestScenarioAdd:

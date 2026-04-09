@@ -106,9 +106,9 @@ class TestPercentile:
         trimmed = result.percentile(60)
         k = math.ceil(5 * 60 / 100)
         assert len(trimmed.durations) == k
-        # should be the smallest k values
+        # should be the smallest k values in sorted order
         sorted_original = sorted(result.durations)
-        assert set(trimmed.durations) == set(sorted_original[:k])
+        assert trimmed.durations == tuple(sorted_original[:k])
 
     def test_percentile_100_returns_all(self) -> None:
         result = make_result((1.0, 2.0, 3.0))
@@ -286,3 +286,33 @@ class TestSerialization:
         data = json.dumps({'is_primary': True, 'scenario': {'name': 'x', 'doc': '', 'number': 1}})
         with pytest.raises(ValueError, match='required fields'):
             BenchmarkResult.from_json(data)
+
+    def test_to_json_scenario_none_is_null(self) -> None:
+        result = BenchmarkResult(scenario=None, durations=(0.1,), is_primary=True)
+        data = json.loads(result.to_json())
+        assert data['scenario'] is None
+
+    def test_from_json_with_scenario_field_ignored(self) -> None:
+        payload = json.dumps({
+            'durations': [0.1, 0.2],
+            'is_primary': True,
+            'scenario': {'name': 'x', 'doc': '', 'number': 1},
+        })
+        restored = BenchmarkResult.from_json(payload)
+        assert restored.scenario is None
+        assert restored.durations == (0.1, 0.2)
+
+    def test_from_json_durations_not_list_raises(self) -> None:
+        payload = json.dumps({'durations': 'not a list', 'is_primary': True})
+        with pytest.raises(ValueError, match='durations'):
+            BenchmarkResult.from_json(payload)
+
+    def test_from_json_is_primary_not_bool_raises(self) -> None:
+        payload = json.dumps({'durations': [0.1], 'is_primary': 'true'})
+        with pytest.raises(ValueError, match='is_primary'):
+            BenchmarkResult.from_json(payload)
+
+    def test_from_json_missing_is_primary_raises(self) -> None:
+        payload = json.dumps({'durations': [0.1, 0.2]})
+        with pytest.raises(ValueError, match='required fields'):
+            BenchmarkResult.from_json(payload)

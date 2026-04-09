@@ -61,10 +61,16 @@ class TestScenarioGroupOperator:
         g = ScenarioGroup(s1)
         new_g = g + s2
         assert new_g is not g
+        assert len(g._scenarios) == 1  # original not mutated
 
     def test_add_unknown_type_returns_not_implemented(self) -> None:
         g = ScenarioGroup()
         result = g.__add__(42)  # type: ignore[arg-type]
+        assert result is NotImplemented
+
+    def test_radd_unknown_type_returns_not_implemented(self) -> None:
+        g = ScenarioGroup()
+        result = g.__radd__(42)  # type: ignore[arg-type]
         assert result is NotImplemented
 
     def test_radd_scenario_to_group(self) -> None:
@@ -98,6 +104,10 @@ class TestScenarioGroupRun:
     def test_empty_group_returns_empty_list(self) -> None:
         g = ScenarioGroup()
         assert g.run() == []
+
+    def test_empty_group_run_with_warmup(self) -> None:
+        g = ScenarioGroup()
+        assert g.run(warmup=10) == []
 
     def test_run_returns_benchmark_results(self) -> None:
         s = make_scenario()
