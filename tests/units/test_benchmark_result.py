@@ -34,14 +34,33 @@ class TestBenchmarkResultFields:
         result = make_result((0.1, 0.2, 0.3))
         assert isinstance(result.durations, tuple)
 
+    def test_empty_durations_raises(self) -> None:
+        # BenchmarkResult does not validate durations length;
+        # creating with empty tuple causes ZeroDivisionError in __post_init__
+        s = Scenario(lambda: None, name='s', number=1)
+        with pytest.raises((ZeroDivisionError, ValueError)):
+            BenchmarkResult(scenario=s, durations=(), is_primary=True)
+
+    def test_inf_durations_fields(self) -> None:
+        result = make_result((float('inf'), 1.0, 2.0))
+        assert math.isinf(result.worst)
+        assert math.isinf(result.mean)
+        assert result.best == 1.0
+
+    def test_nan_durations_fields(self) -> None:
+        result = make_result((float('nan'),))
+        assert math.isnan(result.mean)
+        assert math.isnan(result.best)
+        assert math.isnan(result.worst)
+
     def test_mean_computed_correctly(self) -> None:
         result = make_result((1.0, 2.0, 3.0))
         expected = math.fsum([1.0, 2.0, 3.0]) / 3
         assert result.mean == expected
 
     def test_mean_uses_fsum_precision(self) -> None:
-        # fsum handles cancellation correctly; plain sum loses precision:
-        # sum([1e20, 1.0, -1e20]) == 0.0, fsum == 1.0
+        # fsum handles cancellation correctly; plain sum loses precision
+        # for (1e20, 1.0, -1e20): fsum=1.0, sum=0.0 due to IEEE 754
         durations = (1e20, 1.0, -1e20)
         result = make_result(durations)
         assert result.mean == pytest.approx(1.0 / 3)
@@ -334,6 +353,12 @@ class TestSerialization:
     def test_percentile_single_element(self) -> None:
         result = make_result((5.0,))
         trimmed = result.percentile(50)
+        assert trimmed.durations == (5.0,)
+        assert trimmed.is_primary is False
+
+    def test_percentile_100_single_element(self) -> None:
+        result = make_result((5.0,))
+        trimmed = result.percentile(100)
         assert trimmed.durations == (5.0,)
         assert trimmed.is_primary is False
 

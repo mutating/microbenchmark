@@ -167,12 +167,13 @@ class TestScenarioRun:
         assert counter[0] == 5
 
     def test_run_uses_custom_timer(self) -> None:
-        # timer produces: 0.000, 0.001, 0.002, 0.003, 0.004, 0.005, ...
+        # timer produces: 0.000, 0.001, 0.002, 0.003, ...  (infinite)
         # each measured interval: end - start = 0.001
-        values = iter(t * 0.001 for t in range(200))
+        import itertools  # noqa: PLC0415
+        counter = itertools.count(0)
 
         def fake_timer() -> float:
-            return next(values)
+            return next(counter) * 0.001
 
         s = Scenario(lambda: None, name='s', number=3, timer=fake_timer)
         result = s.run()

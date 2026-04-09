@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from microbenchmark import BenchmarkResult, Scenario, ScenarioGroup
 
 
@@ -80,6 +82,19 @@ class TestScenarioGroupOperator:
         assert isinstance(group, ScenarioGroup)
         assert len(group.run()) == 2
 
+    def test_radd_group_to_group(self) -> None:
+        s1, s2, s3 = make_scenario('s1'), make_scenario('s2'), make_scenario('s3')
+        g1 = ScenarioGroup(s1, s2)
+        g2 = ScenarioGroup(s3)
+        # g2.__radd__(g1) = ScenarioGroup(*g1._scenarios, *g2._scenarios) = [s1, s2, s3]
+        group = g2.__radd__(g1)
+        assert isinstance(group, ScenarioGroup)
+        results = group.run()
+        assert len(results) == 3
+        assert results[0].scenario is s1
+        assert results[1].scenario is s2
+        assert results[2].scenario is s3
+
     def test_duplicate_scenarios(self) -> None:
         s = make_scenario('s')
         group = s + s
@@ -156,3 +171,13 @@ class TestScenarioGroupRun:
         results = g.run(warmup=2)
         assert len(results[0].durations) == 3
         assert len(results[1].durations) == 7
+
+    def test_run_propagates_exception_from_scenario(self) -> None:
+        def bad() -> None:
+            raise RuntimeError('scenario failed')
+
+        s1 = make_scenario('s1')
+        s2 = Scenario(bad, name='s2', number=1)
+        g = ScenarioGroup(s1, s2)
+        with pytest.raises(RuntimeError, match='scenario failed'):
+            g.run()
