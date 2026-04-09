@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import math
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -97,7 +96,6 @@ class TestPercentile:
         assert trimmed.is_primary is False
 
     def test_percentile_count_nearest_rank(self) -> None:
-        import math
         result = make_result(tuple(float(i) for i in range(1, 101)))
         trimmed = result.percentile(95)
         expected_count = math.ceil(100 * 95 / 100)
@@ -106,7 +104,6 @@ class TestPercentile:
     def test_percentile_contains_fastest(self) -> None:
         result = make_result((5.0, 1.0, 3.0, 2.0, 4.0))
         trimmed = result.percentile(60)
-        import math
         k = math.ceil(5 * 60 / 100)
         assert len(trimmed.durations) == k
         # should be the smallest k values
@@ -121,14 +118,12 @@ class TestPercentile:
     def test_percentile_small_number(self) -> None:
         result = make_result((1.0, 2.0, 3.0))
         trimmed = result.percentile(50)
-        import math
         expected = math.ceil(3 * 50 / 100)
         assert len(trimmed.durations) == expected
 
     def test_percentile_99(self) -> None:
         result = make_result(tuple(float(i) for i in range(1, 101)))
         trimmed = result.percentile(99)
-        import math
         assert len(trimmed.durations) == math.ceil(100 * 99 / 100)
 
     def test_percentile_mean_recomputed(self) -> None:
@@ -170,7 +165,6 @@ class TestPercentile:
         result = make_result(durations)
         trimmed = result.percentile(80)
         sorted_d = sorted(durations)
-        import math
         k = math.ceil(10 * 80 / 100)
         expected = math.fsum(sorted_d[:k]) / k
         assert trimmed.mean == pytest.approx(expected)
@@ -194,12 +188,10 @@ class TestCachedProperties:
         assert result.p99 is result.p99
 
     def test_p95_count(self) -> None:
-        import math
         result = make_result(tuple(float(i) for i in range(1, 101)))
         assert len(result.p95.durations) == math.ceil(100 * 95 / 100)
 
     def test_p99_count(self) -> None:
-        import math
         result = make_result(tuple(float(i) for i in range(1, 101)))
         assert len(result.p99.durations) == math.ceil(100 * 99 / 100)
 

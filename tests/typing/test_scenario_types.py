@@ -6,7 +6,6 @@ import pytest
 
 from microbenchmark import BenchmarkResult, Scenario, ScenarioGroup
 
-
 # ---------------------------------------------------------------------------
 # Positive type checks (runtime — confirm valid usage works)
 # ---------------------------------------------------------------------------
