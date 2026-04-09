@@ -209,7 +209,7 @@ class TestScenarioRun:
 
     def test_run_args_incompatible_raises_type_error(self) -> None:
         s = Scenario(lambda: None, args=[1, 2], name='s', number=1)
-        with pytest.raises(TypeError):
+        with pytest.raises(TypeError, match='argument'):
             s.run()
 
     def test_run_exception_mid_iteration(self) -> None:
@@ -249,6 +249,9 @@ class TestScenarioAdd:
         s1 = Scenario(lambda: None, name='s1')
         s2 = Scenario(lambda: None, name='s2')
         g = ScenarioGroup(s1)
-        # g + s2 is g.__add__(s2), but we also want s2.__radd__(g) to work
+        # s2.__radd__(g) = ScenarioGroup(*g._scenarios, s2) = [s1, s2]
         group = s2.__radd__(g)
         assert isinstance(group, ScenarioGroup)
+        results = group.run()
+        assert results[0].scenario is s1
+        assert results[1].scenario is s2

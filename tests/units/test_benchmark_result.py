@@ -40,11 +40,12 @@ class TestBenchmarkResultFields:
         assert result.mean == expected
 
     def test_mean_uses_fsum_precision(self) -> None:
-        # floating point: sum of many small numbers may differ from fsum
-        durations = tuple(0.1 for _ in range(10))
+        # fsum handles cancellation correctly; plain sum loses precision:
+        # sum([1e20, 1.0, -1e20]) == 0.0, fsum == 1.0
+        durations = (1e20, 1.0, -1e20)
         result = make_result(durations)
-        expected = math.fsum(durations) / len(durations)
-        assert result.mean == expected
+        assert result.mean == pytest.approx(1.0 / 3)
+        assert result.mean != sum(durations) / len(durations)
 
     def test_best_is_min(self) -> None:
         result = make_result((3.0, 1.0, 2.0))
@@ -114,6 +115,8 @@ class TestPercentile:
         result = make_result((1.0, 2.0, 3.0))
         trimmed = result.percentile(100)
         assert len(trimmed.durations) == 3
+        assert trimmed.is_primary is False
+        assert trimmed.durations == tuple(sorted(result.durations))
 
     def test_percentile_small_number(self) -> None:
         result = make_result((1.0, 2.0, 3.0))
@@ -213,6 +216,9 @@ class TestSerialization:
         result = make_result((0.1, 0.2))
         data = json.loads(result.to_json())
         assert isinstance(data, dict)
+        assert isinstance(data['durations'], list)
+        assert isinstance(data['is_primary'], bool)
+        assert 'scenario' in data
 
     def test_to_json_contains_durations(self) -> None:
         result = make_result((0.1, 0.2, 0.3))
@@ -311,6 +317,18 @@ class TestSerialization:
         payload = json.dumps({'durations': [0.1], 'is_primary': 'true'})
         with pytest.raises(ValueError, match='is_primary'):
             BenchmarkResult.from_json(payload)
+
+    def test_from_json_is_primary_int_raises(self) -> None:
+        # int 1 is not a bool even though bool is a subclass of int
+        payload = json.dumps({'durations': [0.1], 'is_primary': 1})
+        with pytest.raises(ValueError, match='is_primary'):
+            BenchmarkResult.from_json(payload)
+
+    def test_percentile_single_element(self) -> None:
+        result = make_result((5.0,))
+        trimmed = result.percentile(50)
+        assert trimmed.durations == (5.0,)
+        assert trimmed.is_primary is False
 
     def test_from_json_missing_is_primary_raises(self) -> None:
         payload = json.dumps({'durations': [0.1, 0.2]})
