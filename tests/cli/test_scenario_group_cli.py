@@ -97,3 +97,49 @@ class TestScenarioGroupCliHelp:
         proc = run_script(group_script(), '--help')
         combined = proc.stdout + proc.stderr
         assert 'number' in combined.lower()
+
+
+def single_scenario_script() -> str:
+    return textwrap.dedent(f'''
+        import sys
+        sys.path.insert(0, {str(__import__('pathlib').Path(__file__).parent.parent.parent)!r})
+        from microbenchmark import Scenario, ScenarioGroup
+
+        tick = [0.0]
+        def fake_timer():
+            tick[0] += 0.001
+            return tick[0]
+
+        s1 = Scenario(lambda: None, name='only', number=5, timer=fake_timer)
+        group = ScenarioGroup(s1)
+        group.cli()
+    ''')
+
+
+def three_scenario_script() -> str:
+    return textwrap.dedent(f'''
+        import sys
+        sys.path.insert(0, {str(__import__('pathlib').Path(__file__).parent.parent.parent)!r})
+        from microbenchmark import Scenario, ScenarioGroup
+
+        tick = [0.0]
+        def fake_timer():
+            tick[0] += 0.001
+            return tick[0]
+
+        s1 = Scenario(lambda: None, name='a', number=5, timer=fake_timer)
+        s2 = Scenario(lambda: None, name='b', number=5, timer=fake_timer)
+        s3 = Scenario(lambda: None, name='c', number=5, timer=fake_timer)
+        group = ScenarioGroup(s1, s2, s3)
+        group.cli()
+    ''')
+
+
+class TestScenarioGroupCliDividers:
+    def test_single_scenario_no_divider(self) -> None:
+        proc = run_script(single_scenario_script())
+        assert '---' not in proc.stdout
+
+    def test_three_scenarios_two_dividers(self) -> None:
+        proc = run_script(three_scenario_script())
+        assert proc.stdout.count('---') == 2

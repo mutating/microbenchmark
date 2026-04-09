@@ -121,3 +121,18 @@ class TestScenarioCliHelp:
         proc = run_script(scenario_script(), '--help')
         combined = proc.stdout + proc.stderr
         assert 'max-mean' in combined.lower() or 'max_mean' in combined.lower()
+
+
+class TestScenarioCliEdgeCases:
+    def test_number_zero_fails(self) -> None:
+        proc = run_script(scenario_script(), '--number', '0')
+        assert proc.returncode != 0
+
+    def test_number_negative_fails(self) -> None:
+        proc = run_script(scenario_script(), '--number', '-1')
+        assert proc.returncode != 0
+
+    def test_number_and_max_mean_combined(self) -> None:
+        proc = run_script(scenario_script(), '--number', '5', '--max-mean', '10.0')
+        assert proc.returncode == 0
+        assert 'benchmark: bench' in proc.stdout
