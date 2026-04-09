@@ -52,14 +52,14 @@ class ScenarioGroup:
             return ScenarioGroup(*self._scenarios, other)
         if isinstance(other, ScenarioGroup):
             return ScenarioGroup(*self._scenarios, *other._scenarios)
-        return NotImplemented  # type: ignore[return-value]
+        return NotImplemented
 
     def __radd__(self, other: object) -> ScenarioGroup:
         if isinstance(other, Scenario):
             return ScenarioGroup(other, *self._scenarios)
         if isinstance(other, ScenarioGroup):
             return ScenarioGroup(*other._scenarios, *self._scenarios)
-        return NotImplemented  # type: ignore[return-value]
+        return NotImplemented
 
 
 def _make_scenario_with_number(s: Scenario, number: int) -> Scenario:

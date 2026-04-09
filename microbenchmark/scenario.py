@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Sequence
 
 from microbenchmark.benchmark_result import BenchmarkResult
 
@@ -21,7 +21,7 @@ class Scenario:
     def __init__(  # noqa: PLR0913
         self,
         function: object,
-        args: list[object] | None = None,
+        args: Sequence[object] | None = None,
         *,
         name: str,
         doc: str = '',
@@ -89,7 +89,7 @@ class Scenario:
             return ScenarioGroup(self, other)
         if isinstance(other, ScenarioGroup):
             return ScenarioGroup(self, *other._scenarios)
-        return NotImplemented  # type: ignore[return-value]
+        return NotImplemented
 
     def __radd__(self, other: object) -> ScenarioGroup:
         from microbenchmark.scenario_group import ScenarioGroup  # noqa: PLC0415
@@ -97,7 +97,7 @@ class Scenario:
             return ScenarioGroup(other, self)
         if isinstance(other, ScenarioGroup):
             return ScenarioGroup(*other._scenarios, self)
-        return NotImplemented  # type: ignore[return-value]
+        return NotImplemented
 
 
 def _print_result(result: BenchmarkResult) -> None:
