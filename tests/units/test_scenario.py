@@ -99,8 +99,19 @@ class TestScenarioConstruction:
             Scenario(lambda: None, name='s', number=-1)
 
     def test_name_required_raises(self) -> None:
-        with pytest.raises(TypeError):
+        with pytest.raises(TypeError, match='required keyword-only argument'):
             Scenario(lambda: None)  # type: ignore[call-arg]
+
+    def test_run_negative_warmup_acts_as_zero(self) -> None:
+        counter = [0]
+
+        def fn() -> None:
+            counter[0] += 1
+
+        s = Scenario(fn, name='s', number=3)
+        result = s.run(warmup=-5)
+        assert len(result.durations) == 3
+        assert counter[0] == 3  # negative warmup = range(-5) = empty, silently ignored
 
 
 class TestScenarioRun:
@@ -135,9 +146,15 @@ class TestScenarioRun:
         assert counter[0] == 8
 
     def test_run_warmup_not_in_durations(self) -> None:
-        s = Scenario(lambda: None, name='s', number=5)
+        counter = [0]
+
+        def fn() -> None:
+            counter[0] += 1
+
+        s = Scenario(fn, name='s', number=5)
         result = s.run(warmup=10)
         assert len(result.durations) == 5
+        assert counter[0] == 15  # 10 warmup + 5 measured
 
     def test_run_warmup_zero(self) -> None:
         counter = [0]
@@ -209,7 +226,7 @@ class TestScenarioRun:
 
     def test_run_args_incompatible_raises_type_error(self) -> None:
         s = Scenario(lambda: None, args=[1, 2], name='s', number=1)
-        with pytest.raises(TypeError, match='argument'):
+        with pytest.raises(TypeError, match='positional argument'):
             s.run()
 
     def test_run_exception_mid_iteration(self) -> None:
