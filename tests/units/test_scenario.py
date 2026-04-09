@@ -271,6 +271,16 @@ class TestScenarioAdd:
         result = s.__add__(42)  # type: ignore[arg-type]
         assert result is NotImplemented
 
+    def test_radd_scenario_scenario(self) -> None:
+        s1 = Scenario(lambda: None, name='s1')
+        s2 = Scenario(lambda: None, name='s2')
+        # s2.__radd__(s1) = ScenarioGroup(s1, s2)
+        group = s2.__radd__(s1)
+        assert isinstance(group, ScenarioGroup)
+        results = group.run()
+        assert results[0].scenario is s1
+        assert results[1].scenario is s2
+
     def test_radd_group_scenario(self) -> None:
         s1 = Scenario(lambda: None, name='s1')
         s2 = Scenario(lambda: None, name='s2')

@@ -404,3 +404,8 @@ class TestSerialization:
         payload = json.dumps({'durations': [0.1, 0.2]})
         with pytest.raises(ValueError, match='required fields'):
             BenchmarkResult.from_json(payload)
+
+    def test_from_json_not_dict_raises(self) -> None:
+        payload = json.dumps([1, 2, 3])
+        with pytest.raises(ValueError, match='JSON must be an object'):
+            BenchmarkResult.from_json(payload)
