@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class Scenario:
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         function: Callable[..., Any],
         args: list[Any] | None = None,
