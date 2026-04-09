@@ -88,6 +88,12 @@ class TestScenarioGroupCliMaxMean:
         proc = run_script(group_script(), '--max-mean', '0.000001')
         assert 'benchmark:' in proc.stdout
 
+    def test_max_mean_and_number_combined(self) -> None:
+        proc = run_script(group_script(), '--number', '3', '--max-mean', '10.0')
+        assert proc.returncode == 0
+        assert 'benchmark: first' in proc.stdout
+        assert 'benchmark: second' in proc.stdout
+
 
 class TestScenarioGroupCliHelp:
     def test_help_exits_0(self) -> None:
