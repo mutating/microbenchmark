@@ -190,6 +190,16 @@ class TestPercentile:
         with pytest.raises(ValueError, match='percentile'):
             result.percentile(101)
 
+    def test_percentile_nan_raises(self) -> None:
+        result = make_result((1.0, 2.0, 3.0))
+        with pytest.raises(ValueError, match='percentile'):
+            result.percentile(float('nan'))
+
+    def test_percentile_inf_raises(self) -> None:
+        result = make_result((1.0, 2.0, 3.0))
+        with pytest.raises(ValueError, match='percentile'):
+            result.percentile(float('inf'))
+
     def test_percentile_preserves_fsum_mean(self) -> None:
         durations = tuple(0.1 * i for i in range(1, 11))
         result = make_result(durations)
@@ -354,6 +364,11 @@ class TestSerialization:
     def test_from_json_durations_with_invalid_element_raises(self) -> None:
         payload = '{"durations": [0.1, "not_a_number"], "is_primary": true}'
         with pytest.raises(ValueError, match='could not convert'):
+            BenchmarkResult.from_json(payload)
+
+    def test_from_json_durations_with_null_element_raises(self) -> None:
+        payload = json.dumps({'durations': [0.1, None], 'is_primary': True})
+        with pytest.raises(TypeError):
             BenchmarkResult.from_json(payload)
 
     def test_from_json_empty_durations_list_raises(self) -> None:
