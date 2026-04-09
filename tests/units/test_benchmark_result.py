@@ -38,7 +38,7 @@ class TestBenchmarkResultFields:
         # BenchmarkResult does not validate durations length;
         # creating with empty tuple causes ZeroDivisionError in __post_init__
         s = Scenario(lambda: None, name='s', number=1)
-        with pytest.raises((ZeroDivisionError, ValueError)):
+        with pytest.raises(ZeroDivisionError):
             BenchmarkResult(scenario=s, durations=(), is_primary=True)
 
     def test_inf_durations_fields(self) -> None:
@@ -60,11 +60,10 @@ class TestBenchmarkResultFields:
 
     def test_mean_uses_fsum_precision(self) -> None:
         # fsum handles cancellation correctly; plain sum loses precision
-        # for (1e20, 1.0, -1e20): fsum=1.0, sum=0.0 due to IEEE 754
+        # for (1e20, 1.0, -1e20): fsum=1.0 (exact), but sum=0.0 (catastrophic cancellation)
         durations = (1e20, 1.0, -1e20)
         result = make_result(durations)
-        assert result.mean == pytest.approx(1.0 / 3)
-        assert result.mean != sum(durations) / len(durations)
+        assert result.mean == 1.0 / 3  # exact: fsum gives 1.0, divided by 3
 
     def test_best_is_min(self) -> None:
         result = make_result((3.0, 1.0, 2.0))
@@ -167,6 +166,8 @@ class TestPercentile:
         derived = result.percentile(90).percentile(50)
         assert isinstance(derived, BenchmarkResult)
         assert derived.is_primary is False
+        # 100 → p90 → 90 elements → p50 → ceil(90 * 50/100) = 45
+        assert len(derived.durations) == 45
 
     def test_percentile_scenario_preserved(self) -> None:
         scenario = Scenario(lambda: None, name='s')
@@ -349,6 +350,28 @@ class TestSerialization:
         payload = json.dumps({'durations': [0.1], 'is_primary': 1})
         with pytest.raises(ValueError, match='is_primary'):
             BenchmarkResult.from_json(payload)
+
+    def test_from_json_durations_with_invalid_element_raises(self) -> None:
+        payload = '{"durations": [0.1, "not_a_number"], "is_primary": true}'
+        with pytest.raises(ValueError, match='could not convert'):
+            BenchmarkResult.from_json(payload)
+
+    def test_from_json_empty_durations_list_raises(self) -> None:
+        payload = json.dumps({'durations': [], 'is_primary': True})
+        with pytest.raises(ZeroDivisionError):
+            BenchmarkResult.from_json(payload)
+
+    def test_to_json_inf_produces_non_standard_json(self) -> None:
+        # Python's json module allows_nan=True by default: inf/nan → Infinity/NaN
+        result = make_result((float('inf'), 1.0))
+        j = result.to_json()
+        assert 'Infinity' in j
+
+    def test_to_json_nan_round_trips_in_python(self) -> None:
+        # NaN round-trips through Python's json module (non-standard JSON)
+        result = make_result((float('nan'),))
+        restored = BenchmarkResult.from_json(result.to_json())
+        assert math.isnan(restored.mean)
 
     def test_percentile_single_element(self) -> None:
         result = make_result((5.0,))

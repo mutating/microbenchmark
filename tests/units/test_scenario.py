@@ -257,6 +257,14 @@ class TestScenarioAdd:
         g = ScenarioGroup(s2)
         group = s1 + g
         assert isinstance(group, ScenarioGroup)
+        results = group.run()
+        assert results[0].scenario is s1
+        assert results[1].scenario is s2
+
+    def test_add_int_raises_type_error(self) -> None:
+        s = Scenario(lambda: None, name='s')
+        with pytest.raises(TypeError):
+            _ = 42 + s  # type: ignore[operator]
 
     def test_add_unknown_type_returns_not_implemented(self) -> None:
         s = Scenario(lambda: None, name='s')
