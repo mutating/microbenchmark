@@ -103,6 +103,8 @@ class TestScenarioGroupRun:
         s2 = Scenario(lambda: None, name='s2')
         group = ScenarioGroup(s1, s2)
         results = group.run(warmup=50)
+        assert results[0].scenario is not None
+        assert results[1].scenario is not None
         assert results[0].scenario.name == 's1'
         assert results[1].scenario.name == 's2'
 
