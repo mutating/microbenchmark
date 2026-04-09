@@ -122,6 +122,10 @@ class TestScenarioCliHelp:
         combined = proc.stdout + proc.stderr
         assert 'max-mean' in combined.lower() or 'max_mean' in combined.lower()
 
+    def test_help_does_not_run_benchmark(self) -> None:
+        proc = run_script(scenario_script(), '--help')
+        assert 'benchmark:' not in proc.stdout
+
 
 class TestScenarioCliEdgeCases:
     def test_number_zero_fails(self) -> None:
