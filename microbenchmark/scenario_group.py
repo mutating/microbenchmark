@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import TYPE_CHECKING
 
 from microbenchmark.benchmark_result import BenchmarkResult
 from microbenchmark.scenario import Scenario, _print_result
 
-if TYPE_CHECKING:
-    pass
+
+class _CliArgs:
+    def __init__(self) -> None:
+        self.number: int | None = None
+        self.max_mean: float | None = None
 
 
 class ScenarioGroup:
@@ -23,12 +25,13 @@ class ScenarioGroup:
         parser.add_argument('--number', type=int, default=None, help='Number of iterations')
         parser.add_argument('--max-mean', type=float, default=None, dest='max_mean',
                             help='Fail if any scenario mean time (seconds) exceeds this threshold')
-        parsed = parser.parse_args()
+        cli_args = _CliArgs()
+        parser.parse_args(namespace=cli_args)
 
         scenarios = self._scenarios
-        if parsed.number is not None:
+        if cli_args.number is not None:
             scenarios = [
-                _make_scenario_with_number(s, parsed.number)
+                _make_scenario_with_number(s, cli_args.number)
                 for s in self._scenarios
             ]
 
@@ -38,7 +41,7 @@ class ScenarioGroup:
             _print_result(result)
             if i < len(scenarios) - 1:
                 sys.stdout.write('---\n')
-            if parsed.max_mean is not None and result.mean > parsed.max_mean:
+            if cli_args.max_mean is not None and result.mean > cli_args.max_mean:
                 failed = True
 
         if failed:
