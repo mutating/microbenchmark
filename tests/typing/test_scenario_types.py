@@ -59,11 +59,11 @@ class TestScenarioPositiveTypes:
 
 class TestScenarioNegativeTypes:
     def test_number_zero_raises(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='number'):
             Scenario(lambda: None, name='s', number=0)
 
     def test_number_negative_raises(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='number'):
             Scenario(lambda: None, name='s', number=-5)
 
     def test_add_int_returns_not_implemented(self) -> None:

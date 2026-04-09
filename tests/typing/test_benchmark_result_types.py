@@ -58,23 +58,23 @@ class TestBenchmarkResultPositiveTypes:
 class TestBenchmarkResultNegativeTypes:
     def test_percentile_zero_raises(self) -> None:
         result = make_result()
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='percentile'):
             result.percentile(0)
 
     def test_percentile_negative_raises(self) -> None:
         result = make_result()
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='percentile'):
             result.percentile(-1)
 
     def test_percentile_above_100_raises(self) -> None:
         result = make_result()
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='percentile'):
             result.percentile(101)
 
     def test_from_json_invalid_raises(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises(json.JSONDecodeError):
             BenchmarkResult.from_json('{not valid}')
 
     def test_from_json_empty_object_raises(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError, match='required fields'):
             BenchmarkResult.from_json('{}')
