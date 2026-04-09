@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Callable, Sequence
 
 from microbenchmark.benchmark_result import BenchmarkResult
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from microbenchmark.scenario_group import ScenarioGroup
 
 
