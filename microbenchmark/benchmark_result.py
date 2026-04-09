@@ -4,10 +4,22 @@ import json
 import math
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from microbenchmark.scenario import Scenario
+
+
+class _ScenarioMeta(TypedDict):
+    name: str
+    doc: str
+    number: int
+
+
+class _ResultJson(TypedDict):
+    durations: list[float]
+    is_primary: bool
+    scenario: _ScenarioMeta | None
 
 
 @dataclass
@@ -45,28 +57,37 @@ class BenchmarkResult:
         return self.percentile(99)
 
     def to_json(self) -> str:
-        scenario_data: dict[str, Any] | None
+        scenario_meta: _ScenarioMeta | None
         if self.scenario is not None:
-            scenario_data = {
-                'name': self.scenario.name,
-                'doc': self.scenario.doc,
-                'number': self.scenario.number,
-            }
+            scenario_meta = _ScenarioMeta(
+                name=self.scenario.name,
+                doc=self.scenario.doc,
+                number=self.scenario.number,
+            )
         else:
-            scenario_data = None
-        return json.dumps({
-            'durations': list(self.durations),
-            'is_primary': self.is_primary,
-            'scenario': scenario_data,
-        })
+            scenario_meta = None
+        data: _ResultJson = _ResultJson(
+            durations=list(self.durations),
+            is_primary=self.is_primary,
+            scenario=scenario_meta,
+        )
+        return json.dumps(data)
 
     @classmethod
     def from_json(cls, data: str) -> BenchmarkResult:
-        parsed = json.loads(data)
-        if 'durations' not in parsed or 'is_primary' not in parsed:
+        raw: object = json.loads(data)
+        if not isinstance(raw, dict):
+            raise ValueError('JSON must be an object')
+        if 'durations' not in raw or 'is_primary' not in raw:
             raise ValueError('JSON is missing required fields: durations, is_primary')
+        raw_durations = raw['durations']
+        raw_is_primary = raw['is_primary']
+        if not isinstance(raw_durations, list):
+            raise ValueError('durations must be a list')
+        if not isinstance(raw_is_primary, bool):
+            raise ValueError('is_primary must be a bool')
         return cls(
             scenario=None,
-            durations=tuple(float(d) for d in parsed['durations']),
-            is_primary=bool(parsed['is_primary']),
+            durations=tuple(float(d) for d in raw_durations),
+            is_primary=raw_is_primary,
         )
