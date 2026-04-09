@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import TYPE_CHECKING, TypedDict
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from microbenchmark.scenario import Scenario
 
 
