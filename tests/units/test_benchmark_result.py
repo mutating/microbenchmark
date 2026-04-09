@@ -124,6 +124,13 @@ class TestPercentile:
         expected = math.ceil(3 * 50 / 100)
         assert len(trimmed.durations) == expected
 
+    def test_percentile_very_small_positive(self) -> None:
+        result = make_result((1.0, 2.0, 3.0, 4.0, 5.0))
+        trimmed = result.percentile(0.001)
+        # ceil(5 * 0.001 / 100) = ceil(0.00005) = 1
+        assert len(trimmed.durations) == 1
+        assert trimmed.durations == (1.0,)
+
     def test_percentile_99(self) -> None:
         result = make_result(tuple(float(i) for i in range(1, 101)))
         trimmed = result.percentile(99)

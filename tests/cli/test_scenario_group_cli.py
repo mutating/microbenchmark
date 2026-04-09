@@ -47,8 +47,9 @@ class TestScenarioGroupCliOutput:
 
     def test_divider_between_not_after_last(self) -> None:
         proc = run_script(group_script())
+        # group_script() has 2 scenarios → exactly 1 divider between them
+        assert proc.stdout.count('---\n') == 1
         lines = proc.stdout.strip().splitlines()
-        # last line should NOT be ---
         assert lines[-1] != '---'
 
     def test_exit_code_0_by_default(self) -> None:

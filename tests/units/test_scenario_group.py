@@ -148,3 +148,11 @@ class TestScenarioGroupRun:
         results = g.run()
         assert results[0].scenario is s1
         assert results[1].scenario is s2
+
+    def test_run_warmup_different_numbers(self) -> None:
+        s1 = Scenario(lambda: None, name='a', number=3)
+        s2 = Scenario(lambda: None, name='b', number=7)
+        g = ScenarioGroup(s1, s2)
+        results = g.run(warmup=2)
+        assert len(results[0].durations) == 3
+        assert len(results[1].durations) == 7
