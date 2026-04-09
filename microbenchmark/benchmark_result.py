@@ -38,7 +38,7 @@ class BenchmarkResult:
         self.worst = max(self.durations)
 
     def percentile(self, p: float) -> BenchmarkResult:
-        if p <= 0 or p > 100:
+        if not (0 < p <= 100):
             raise ValueError(f'percentile must be in (0, 100], got {p}')
         k = math.ceil(len(self.durations) * p / 100)
         trimmed = tuple(sorted(self.durations)[:k])
