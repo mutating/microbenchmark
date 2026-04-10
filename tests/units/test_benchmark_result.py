@@ -200,6 +200,16 @@ class TestPercentile:
         with pytest.raises(ValueError, match='percentile'):
             result.percentile(float('inf'))
 
+    def test_percentile_neg_inf_raises(self) -> None:
+        result = make_result((1.0, 2.0, 3.0))
+        with pytest.raises(ValueError, match='percentile'):
+            result.percentile(float('-inf'))
+
+    def test_percentile_zero_float_raises(self) -> None:
+        result = make_result((1.0, 2.0, 3.0))
+        with pytest.raises(ValueError, match='percentile'):
+            result.percentile(0.0)
+
     def test_percentile_preserves_fsum_mean(self) -> None:
         durations = tuple(0.1 * i for i in range(1, 11))
         result = make_result(durations)
@@ -409,3 +419,23 @@ class TestSerialization:
         payload = json.dumps([1, 2, 3])
         with pytest.raises(ValueError, match='JSON must be an object'):
             BenchmarkResult.from_json(payload)
+
+    def test_from_json_inf_round_trip(self) -> None:
+        # Python's json module handles Infinity via allow_nan=True (default)
+        result = make_result((float('inf'), 1.0))
+        restored = BenchmarkResult.from_json(result.to_json())
+        assert math.isinf(restored.durations[0])
+        assert restored.durations[1] == 1.0
+
+    def test_from_json_bool_duration_converts_to_float(self) -> None:
+        # JSON true/false → Python True/False → float(True)=1.0, float(False)=0.0
+        payload = json.dumps({'durations': [True, False], 'is_primary': True})
+        restored = BenchmarkResult.from_json(payload)
+        assert restored.durations == (1.0, 0.0)
+
+    def test_from_json_negative_durations_accepted(self) -> None:
+        # negative durations can occur with non-monotonic timers; no validation
+        payload = json.dumps({'durations': [-0.1, 0.2], 'is_primary': True})
+        restored = BenchmarkResult.from_json(payload)
+        assert restored.mean == pytest.approx(0.05)
+        assert restored.best == -0.1

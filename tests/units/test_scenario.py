@@ -193,6 +193,8 @@ class TestScenarioRun:
         assert tick[0] == 10
         # only the 3 measured durations should be stored
         assert len(result.durations) == 3
+        # each measured interval: end - start = 1 (timer increments by 1 each call)
+        assert result.durations == pytest.approx((1.0, 1.0, 1.0))
 
     def test_run_result_scenario_is_self(self) -> None:
         s = Scenario(lambda: None, name='s', number=5)
@@ -294,6 +296,11 @@ class TestScenarioAdd:
     def test_add_unknown_type_returns_not_implemented(self) -> None:
         s = Scenario(lambda: None, name='s')
         result = s.__add__(42)  # type: ignore[arg-type]
+        assert result is NotImplemented
+
+    def test_radd_unknown_type_returns_not_implemented(self) -> None:
+        s = Scenario(lambda: None, name='s')
+        result = s.__radd__(42)  # type: ignore[arg-type]
         assert result is NotImplemented
 
     def test_radd_scenario_scenario(self) -> None:
