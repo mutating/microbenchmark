@@ -89,3 +89,4 @@
 - Все CLI-штуки должны быть протестированы с помощью библиотеки subprocess
 - ClI-тесты должны лежать в tests/cli, обычные юнит-тесты в tests/units, а тесты типизации - в tests/typing
 - На основе каждого примера кода нужно также создать по тесту, эти тесты должны лежать в tests/documentation/test_readme.py
+- Тесты должны быть function-based (не class-based)
