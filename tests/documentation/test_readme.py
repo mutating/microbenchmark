@@ -151,16 +151,14 @@ class TestP95P99:
 
 class TestScenarioConstructorValidation:
     def test_number_zero_raises(self) -> None:
-        # README: "passing 0 or a negative value raises ValueError"
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='number'):
             Scenario(lambda: None, name='s', number=0)
 
     def test_number_negative_raises(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='number'):
             Scenario(lambda: None, name='s', number=-1)
 
     def test_args_none_and_empty_list_equivalent(self) -> None:
-        # README: "None (the default) and [] both mean the function is called with no arguments"
         calls_none: list[tuple[object, ...]] = []
         calls_empty: list[tuple[object, ...]] = []
 
@@ -176,20 +174,18 @@ class TestScenarioConstructorValidation:
         assert calls_empty == [()]
 
     def test_args_shallow_copied(self) -> None:
-        # README: "The list is shallow-copied on construction"
-        original = [1, 2]
-        s = Scenario(lambda *_: None, args=original, name='s', number=1)
-        original.append(3)
         call_log: list[tuple[object, ...]] = []
 
         def fn(*a: object) -> None:
             call_log.append(a)
 
-        Scenario(fn, args=[1, 2], name='s', number=1).run()
+        original = [1, 2]
+        s = Scenario(fn, args=original, name='s', number=1)
+        original.append(3)
+        s.run()
         assert call_log == [(1, 2)]  # mutation after construction has no effect
 
     def test_custom_timer(self) -> None:
-        # README: "Supply a custom clock to get deterministic measurements in tests"
         tick = [0.0]
 
         def fake_timer() -> float:
@@ -203,14 +199,13 @@ class TestScenarioConstructorValidation:
 
 class TestPercentileValidation:
     def test_percentile_zero_raises(self) -> None:
-        # README: "passing 0 or a value above 100 raises ValueError"
         result = Scenario(lambda: None, name='noop', number=10).run()
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='percentile'):
             result.percentile(0)
 
     def test_percentile_above_100_raises(self) -> None:
         result = Scenario(lambda: None, name='noop', number=10).run()
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='percentile'):
             result.percentile(101)
 
 
