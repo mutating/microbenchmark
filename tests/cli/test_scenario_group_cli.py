@@ -94,6 +94,14 @@ class TestScenarioGroupCliMaxMean:
         assert 'benchmark: first' in proc.stdout
         assert 'benchmark: second' in proc.stdout
 
+    def test_max_mean_fails_when_only_one_exceeds(self) -> None:
+        # slow mean≈1.0, fast mean≈0.001; threshold=0.5 → only slow exceeds → exit 1
+        proc = run_script(mixed_speed_group_script(), '--max-mean', '0.5')
+        assert proc.returncode == 1
+        # both results are still printed (no early exit)
+        assert 'benchmark: slow' in proc.stdout
+        assert 'benchmark: fast' in proc.stdout
+
 
 class TestScenarioGroupCliHelp:
     def test_help_exits_0(self) -> None:
@@ -135,6 +143,30 @@ class TestScenarioGroupCliEmptyGroup:
         proc = run_script(empty_group_script())
         assert proc.stdout == ''
         assert proc.stderr == ''
+
+
+def mixed_speed_group_script() -> str:
+    """Two scenarios with different speeds: slow (mean≈1.0s) and fast (mean≈0.001s)."""
+    return textwrap.dedent(f'''
+        import sys
+        sys.path.insert(0, {str(__import__('pathlib').Path(__file__).parent.parent.parent)!r})
+        from microbenchmark import Scenario, ScenarioGroup
+
+        slow_tick = [0.0]
+        def slow_timer():
+            slow_tick[0] += 1.0
+            return slow_tick[0]
+
+        fast_tick = [0.0]
+        def fast_timer():
+            fast_tick[0] += 0.001
+            return fast_tick[0]
+
+        s1 = Scenario(lambda: None, name='slow', number=5, timer=slow_timer)
+        s2 = Scenario(lambda: None, name='fast', number=5, timer=fast_timer)
+        group = s1 + s2
+        group.cli()
+    ''')
 
 
 def single_scenario_script() -> str:
