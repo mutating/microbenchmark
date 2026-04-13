@@ -26,5 +26,5 @@ class TestPublicImports:
     def test_all_contains_benchmark_result(self) -> None:
         assert 'BenchmarkResult' in microbenchmark.__all__
 
-    def test_all_contains_exactly_three_items(self) -> None:
-        assert set(microbenchmark.__all__) == {'Scenario', 'ScenarioGroup', 'BenchmarkResult'}
+    def test_all_contains_exactly_five_items(self) -> None:
+        assert set(microbenchmark.__all__) == {'Scenario', 'ScenarioGroup', 'BenchmarkResult', 'a', 'arguments'}

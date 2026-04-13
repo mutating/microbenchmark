@@ -4,68 +4,144 @@ import time
 
 import pytest
 
-from microbenchmark import BenchmarkResult, Scenario, ScenarioGroup
+from microbenchmark import Scenario, ScenarioGroup, arguments
 
 # ---------------------------------------------------------------------------
-# Positive type checks (runtime — confirm valid usage works)
+# Positive: Scenario construction
 # ---------------------------------------------------------------------------
 
-class TestScenarioPositiveTypes:
-    def test_callable_function(self) -> None:
-        s = Scenario(lambda: None, name='s')
-        assert isinstance(s, Scenario)
 
-    def test_args_none(self) -> None:
-        s = Scenario(lambda: None, args=None, name='s')
-        assert isinstance(s, Scenario)
+@pytest.mark.mypy_testing
+def test_scenario_no_name_no_args():
+    Scenario(lambda: None)
 
-    def test_args_list(self) -> None:
-        s = Scenario(sum, args=[[1, 2, 3]], name='s')
-        assert isinstance(s, Scenario)
 
-    def test_number_int(self) -> None:
-        s = Scenario(lambda: None, name='s', number=100)
-        assert isinstance(s, Scenario)
+@pytest.mark.mypy_testing
+def test_scenario_with_name():
+    Scenario(lambda: None, name='s')
 
-    def test_timer_callable(self) -> None:
-        s = Scenario(lambda: None, name='s', timer=time.perf_counter)
-        assert isinstance(s, Scenario)
 
-    def test_run_returns_benchmark_result(self) -> None:
-        result = Scenario(lambda: None, name='s', number=1).run()
-        assert isinstance(result, BenchmarkResult)
+@pytest.mark.mypy_testing
+def test_scenario_with_arguments_positional():
+    Scenario(sorted, arguments([3, 1, 2]))
 
-    def test_run_with_warmup_returns_benchmark_result(self) -> None:
-        result = Scenario(lambda: None, name='s', number=1).run(warmup=0)
-        assert isinstance(result, BenchmarkResult)
 
-    def test_add_scenario_returns_group(self) -> None:
-        s1 = Scenario(lambda: None, name='s1')
-        s2 = Scenario(lambda: None, name='s2')
-        group = s1 + s2
-        assert isinstance(group, ScenarioGroup)
+@pytest.mark.mypy_testing
+def test_scenario_with_arguments_and_name():
+    Scenario(sorted, arguments([3, 1, 2]), name='sort')
 
-    def test_add_group_returns_group(self) -> None:
-        s1 = Scenario(lambda: None, name='s1')
-        g = ScenarioGroup()
-        group = s1 + g
-        assert isinstance(group, ScenarioGroup)
+
+@pytest.mark.mypy_testing
+def test_scenario_arguments_none_explicit():
+    Scenario(lambda: None, None, name='s')
+
+
+@pytest.mark.mypy_testing
+def test_scenario_number_int():
+    Scenario(lambda: None, name='s', number=100)
+
+
+@pytest.mark.mypy_testing
+def test_scenario_timer_callable():
+    Scenario(lambda: None, name='s', timer=time.perf_counter)
+
+
+@pytest.mark.mypy_testing
+def test_scenario_doc_str():
+    Scenario(lambda: None, name='s', doc='a description')
 
 
 # ---------------------------------------------------------------------------
-# Negative type checks (runtime ValueError/TypeError for invalid inputs)
+# Positive: Scenario attribute types
 # ---------------------------------------------------------------------------
 
-class TestScenarioNegativeTypes:
-    def test_number_zero_raises(self) -> None:
-        with pytest.raises(ValueError, match='number'):
-            Scenario(lambda: None, name='s', number=0)
 
-    def test_number_negative_raises(self) -> None:
-        with pytest.raises(ValueError, match='number'):
-            Scenario(lambda: None, name='s', number=-5)
+@pytest.mark.mypy_testing
+def test_scenario_name_is_str_or_none():
+    scenario = Scenario(lambda: None)
+    reveal_type(scenario.name)  # N: Revealed type is "Union[builtins.str, None]"
 
-    def test_add_int_returns_not_implemented(self) -> None:
-        s = Scenario(lambda: None, name='s')
-        result = s.__add__(42)  # type: ignore[arg-type]
-        assert result is NotImplemented
+
+@pytest.mark.mypy_testing
+def test_scenario_doc_is_str():
+    scenario = Scenario(lambda: None, name='s')
+    reveal_type(scenario.doc)  # N: Revealed type is "builtins.str"
+
+
+@pytest.mark.mypy_testing
+def test_scenario_number_is_int():
+    scenario = Scenario(lambda: None, name='s')
+    reveal_type(scenario.number)  # N: Revealed type is "builtins.int"
+
+
+# ---------------------------------------------------------------------------
+# Positive: Scenario.run() return type
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.mypy_testing
+def test_scenario_run_returns_benchmark_result():
+    result = Scenario(lambda: None, name='s', number=1).run()
+    reveal_type(result)  # N: Revealed type is "microbenchmark.benchmark_result.BenchmarkResult"
+
+
+@pytest.mark.mypy_testing
+def test_scenario_run_with_warmup_returns_benchmark_result():
+    result = Scenario(lambda: None, name='s', number=1).run(warmup=5)
+    reveal_type(result)  # N: Revealed type is "microbenchmark.benchmark_result.BenchmarkResult"
+
+
+# ---------------------------------------------------------------------------
+# Positive: Scenario + operator  # noqa: ERA001
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.mypy_testing
+def test_scenario_add_scenario_returns_group():
+    s1 = Scenario(lambda: None, name='s1')
+    s2 = Scenario(lambda: None, name='s2')
+    group = s1 + s2
+    reveal_type(group)  # N: Revealed type is "microbenchmark.scenario_group.ScenarioGroup"
+
+
+@pytest.mark.mypy_testing
+def test_scenario_add_group_returns_group():
+    s = Scenario(lambda: None, name='s')
+    g = ScenarioGroup()
+    group = s + g
+    reveal_type(group)  # N: Revealed type is "microbenchmark.scenario_group.ScenarioGroup"
+
+
+@pytest.mark.mypy_testing
+def test_scenario_cli_method_type():
+    scenario = Scenario(lambda: None, name='s')
+    reveal_type(scenario.cli)  # N: Revealed type is "def ()"
+
+
+# ---------------------------------------------------------------------------
+# Negative: Scenario construction with wrong types
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.mypy_testing
+def test_scenario_number_str_rejected():
+    try:
+        Scenario(lambda: None, name='s', number='bad')  # E: Argument "number" to "Scenario" has incompatible type "str"; expected "int"  [arg-type]
+    except (ValueError, TypeError):
+        pass
+
+
+@pytest.mark.mypy_testing
+def test_scenario_timer_int_rejected():
+    try:
+        Scenario(lambda: None, name='s', timer=42)  # E: Argument "timer" to "Scenario" has incompatible type "int"; expected "Callable[[], float]"  [arg-type]
+    except TypeError:
+        pass
+
+
+@pytest.mark.mypy_testing
+def test_scenario_second_arg_str_rejected():
+    try:
+        Scenario(lambda: None, 'not_arguments', name='s')  # E: Argument 2 to "Scenario" has incompatible type "str"; expected "arguments | None"  [arg-type]
+    except TypeError:
+        pass

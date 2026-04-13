@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import statistics
 from dataclasses import dataclass, field
 from functools import cached_property
 from typing import TYPE_CHECKING, TypedDict
@@ -11,7 +12,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class _ScenarioMeta(TypedDict):
-    name: str
+    name: str | None
     doc: str
     number: int
 
@@ -40,13 +41,17 @@ class BenchmarkResult:
     def percentile(self, p: float) -> BenchmarkResult:
         if not (0 < p <= 100):
             raise ValueError(f'percentile must be in (0, 100], got {p}')
-        k = math.ceil(len(self.durations) * p / 100)
-        trimmed = tuple(sorted(self.durations)[:k])
+        keep_count = math.ceil(len(self.durations) * p / 100)
+        trimmed = tuple(sorted(self.durations)[:keep_count])
         return BenchmarkResult(
             scenario=self.scenario,
             durations=trimmed,
             is_primary=False,
         )
+
+    @cached_property
+    def median(self) -> float:
+        return statistics.median(self.durations)
 
     @cached_property
     def p95(self) -> BenchmarkResult:

@@ -42,6 +42,9 @@ class ScenarioGroup:
             if i < len(scenarios) - 1:
                 sys.stdout.write('---\n')
             if cli_args.max_mean is not None and result.mean > cli_args.max_mean:
+                sys.stdout.write(
+                    f'FAIL: mean {result.mean:.6f}s exceeds --max-mean {cli_args.max_mean:.6f}s\n',
+                )
                 failed = True
 
         if failed:
@@ -65,7 +68,7 @@ class ScenarioGroup:
 def _make_scenario_with_number(s: Scenario, number: int) -> Scenario:
     return Scenario(
         s.function,
-        s._args,
+        s._arguments,
         name=s.name,
         doc=s.doc,
         number=number,
