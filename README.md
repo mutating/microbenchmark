@@ -279,7 +279,7 @@ Supported arguments:
 
 - `--number N` — override the scenario's `number` for this run.
 - `--max-mean THRESHOLD` — exit with code `1` if the mean time (in seconds) exceeds `THRESHOLD`. Useful in CI.
-- `--histogram` — append an ASCII histogram of per-call timings inside the border. The histogram is 8 rows tall and fills the available inner width.
+- `--histogram` — append an ASCII histogram of per-call timings inside the border. The histogram is 8 rows tall and fills the available inner width. The x-axis is clipped at the p99 value to prevent extreme outliers from compressing the bulk of the distribution.
 - `--help` — print usage information and exit.
 
 Output format (each scenario is wrapped in a Unicode border):
@@ -483,7 +483,7 @@ Supported arguments:
 
 - `--number N` — passed to every scenario.
 - `--max-mean THRESHOLD` — exits with code `1` if any scenario's mean exceeds the threshold.
-- `--histogram` — append an ASCII histogram of per-call timings inside each inner border. The histogram is 8 rows tall and fills the available inner width.
+- `--histogram` — append an ASCII histogram of per-call timings inside each inner border. The histogram is 8 rows tall and fills the available inner width. The x-axis is clipped at the p99 value to prevent extreme outliers from compressing the bulk of the distribution.
 - `--help` — print usage information and exit.
 
 ```python
@@ -670,7 +670,7 @@ All options accepted by `Scenario.cli()` and `ScenarioGroup.cli()` are forwarded
 
 - `--number N` — override the iteration count for this run.
 - `--max-mean THRESHOLD` — exit with code `1` if any scenario's mean time (seconds) exceeds `THRESHOLD`.
-- `--histogram` — append an ASCII histogram of per-call timings inside the output border.
+- `--histogram` — append an ASCII histogram of per-call timings inside the output border. The x-axis is clipped at the p99 value to prevent extreme outliers from compressing the bulk of the distribution.
 - `--help` — print usage and exit.
 
 ### Exit codes

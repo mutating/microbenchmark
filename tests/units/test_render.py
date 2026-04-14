@@ -374,6 +374,36 @@ def test_draw_histogram_single_duration_all_equal():
         assert row[mid] == '█'
 
 
+def test_draw_histogram_large_width_uses_wide_bars():
+    # With width > 20 the output is still exactly width chars wide and each
+    # of the 20 buckets is rendered as multiple adjacent characters.
+    durations = [i * 0.001 for i in range(1, 21)]
+    result = draw_histogram(durations, 80, 4)
+
+    assert len(result) == 4
+    assert all(len(row) == 80 for row in result)
+
+    # 20 uniform values → 20 equal-height buckets → all 80 columns filled
+    filled_columns = [col for col in range(80) if any(row[col] == '█' for row in result)]
+    assert len(filled_columns) == 80
+
+
+def test_draw_histogram_p99_clips_extreme_outlier():
+    # 100 normal values around 0.001 plus one huge outlier at 1.0
+    # Without p99 clipping the outlier would stretch the x-axis ~1000x,
+    # compressing all normal data into column 0. With clipping the outlier
+    # is excluded from bucketing and the normal data spreads across columns.
+    normal = [0.001 + i * 0.00001 for i in range(100)]
+    outlier = [1.0]
+    durations = normal + outlier
+    result = draw_histogram(durations, 20, 4)
+
+    # The bulk of the data (normal values) must appear in multiple columns,
+    # not just the leftmost one.
+    filled_columns = [col for col in range(20) if any(row[col] == '█' for row in result)]
+    assert len(filled_columns) > 1
+
+
 # ---------------------------------------------------------------------------
 # Smoke: Scenario.cli --histogram outputs block chars
 # ---------------------------------------------------------------------------

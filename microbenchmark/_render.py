@@ -80,42 +80,63 @@ def draw_nested(
 def draw_histogram(durations: Sequence[float], width: int, height: int) -> list[str]:
     """Render an ASCII bar chart of *durations* as a ``height`` x ``width`` grid.
 
-    Each column is one bucket; each row is one unit of height.  Filled cells
-    use ``'█'``; empty cells use ``' '``.  Returns an empty list when any
+    The output is ``width`` characters wide and ``height`` rows tall.  Filled
+    cells use ``'█'``; empty cells use ``' '``.  Returns an empty list when any
     dimension is zero/negative or when *durations* is empty.
 
-    When all values are identical (``hi == lo``), the middle column is drawn
-    full-height and all other columns are left empty.
+    Internally the data is bucketed into at most 20 bins regardless of
+    *width*.  Each bin is then rendered as ``width // n_buckets`` characters
+    wide.  This prevents timer-quantisation artefacts (where most measurements
+    snap to a handful of discrete nanosecond values) from producing a single
+    column spike with stray isolated pixels elsewhere.
+
+    The x-axis upper bound is clipped to the p99 value to prevent extreme
+    outliers from compressing the bulk of the distribution.  Values above the
+    p99 clip point are omitted from buckets.
+
+    When all values are identical (``hi == lo``), the middle bin is drawn
+    full-height and all others are left empty.
 
     Args:
         durations: Sequence of per-call timings in seconds.
-        width: Number of columns (buckets) in the chart.
+        width: Total number of output characters per row.
         height: Number of rows in the chart.
     """
     if width < 1 or height < 1 or len(durations) == 0:
         return []
 
-    lo = min(durations)
-    hi = max(durations)
+    sorted_durs = sorted(durations)
+    lo = sorted_durs[0]
+    p99_idx = min(len(sorted_durs) - 1, int(len(sorted_durs) * 0.99))
+    hi = sorted_durs[p99_idx]
 
-    counts = [0] * width
+    # Cap the number of data buckets at 20 so that each bucket spans a
+    # visible fraction of the output width and adjacent quantised values are
+    # merged into the same bar.
+    n_buckets = min(width, 20)
+    counts = [0] * n_buckets
 
     if hi == lo:
-        counts[width // 2] = 1
+        counts[n_buckets // 2] = 1
     else:
         span = hi - lo
         for d in durations:
-            idx = min(width - 1, int((d - lo) / span * width))
+            if d > hi:
+                continue
+            idx = min(n_buckets - 1, int((d - lo) / span * n_buckets))
             counts[idx] += 1
 
     max_count = max(counts)
     bar_heights = [
-        (max(1, round(c / max_count * height)) if c > 0 else 0)
+        round(c / max_count * height) if c > 0 else 0
         for c in counts
     ]
 
     rows: list[str] = []
     for row in range(height - 1, -1, -1):
-        line = ''.join('█' if bar_heights[col] > row else ' ' for col in range(width))
+        line = ''.join(
+            '█' if bar_heights[col * n_buckets // width] > row else ' '
+            for col in range(width)
+        )
         rows.append(line)
     return rows
