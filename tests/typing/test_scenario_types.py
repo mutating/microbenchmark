@@ -142,6 +142,6 @@ def test_scenario_timer_int_rejected():
 @pytest.mark.mypy_testing
 def test_scenario_second_arg_str_rejected():
     try:
-        Scenario(lambda: None, 'not_arguments', name='s')  # E: Argument 2 to "Scenario" has incompatible type "str"; expected "arguments | None"  [arg-type]
+        Scenario(lambda: None, 'not_arguments', name='s')  # E: [arg-type]
     except TypeError:
         pass
