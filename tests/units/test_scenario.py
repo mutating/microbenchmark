@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import itertools
+from unittest.mock import patch
 
 import pytest
 from full_match import match
 
 from microbenchmark import BenchmarkResult, Scenario, ScenarioGroup, arguments
+from microbenchmark.scenario import _fn_call_str
 
 # ---------------------------------------------------------------------------
 # Construction
@@ -460,3 +462,43 @@ def test_radd_group_scenario():
     results = group.run()
     assert results[0].scenario is scenario1
     assert results[1].scenario is scenario2
+
+
+# ---------------------------------------------------------------------------
+# _fn_call_str — OSError fallback (platform-specific getsources behavior)
+# ---------------------------------------------------------------------------
+
+
+def test_fn_call_str_oserror_fallback_uses_dunder_name():
+    # On some platforms/versions getsources raises OSError instead of
+    # UncertaintyWithLambdasError, which propagates through superrepr.
+    # When dunder_name is '<lambda>' it is used as the fallback fn_name.
+    fn = lambda: None
+
+    with patch('microbenchmark.scenario.superrepr', side_effect=OSError):
+        result = _fn_call_str(fn, None)
+
+    assert result == '<lambda>()'
+
+
+def test_fn_call_str_oserror_fallback_uses_repr_when_no_name():
+    # When the callable has no __name__ attribute, repr() is used as fallback.
+    class _NoName:
+        def __call__(self) -> None:
+            pass
+
+        def __repr__(self) -> str:
+            return 'my_custom_repr'
+
+    with patch('microbenchmark.scenario.superrepr', side_effect=OSError):
+        result = _fn_call_str(_NoName(), None)
+
+    assert result == 'my_custom_repr()'
+
+
+def test_fn_call_str_non_oserror_propagates():
+    # Only OSError is caught; other exceptions from superrepr must propagate.
+    fn = lambda: None
+
+    with pytest.raises(ValueError, match='unexpected'), patch('microbenchmark.scenario.superrepr', side_effect=ValueError('unexpected')):
+        _fn_call_str(fn, None)
