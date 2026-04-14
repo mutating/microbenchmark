@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from printo import describe_data_object
+from sigmatch import PossibleCallMatcher
+from sigmatch.errors import SignatureNotFoundError, UnsupportedSignatureError
 
 
 class arguments:  # noqa: N801
@@ -28,3 +30,25 @@ class arguments:  # noqa: N801
 
     def __hash__(self) -> int:
         return hash((self.args, tuple(sorted(self.kwargs.items()))))
+
+    def match(self, function: object) -> bool:
+        """Check whether *function* can be called with these arguments.
+
+        Returns ``True`` if the call is compatible with the function's
+        signature, ``False`` if not.
+
+        **Limitation:** if Python cannot introspect the signature of
+        *function* (e.g. built-in / C-extension functions such as ``len``),
+        the check is silently skipped and ``True`` is returned.  The function
+        will be validated at runtime when the benchmark actually runs.
+        """
+        from sigmatch import SignatureMismatchError  # noqa: PLC0415
+        shape = ('.',) * len(self.args) + tuple(self.kwargs)
+        matcher: PossibleCallMatcher = PossibleCallMatcher(*shape)
+        try:
+            matcher.match(function, raise_exception=True)  # type: ignore[arg-type]
+            return True
+        except SignatureMismatchError:
+            return False
+        except (SignatureNotFoundError, UnsupportedSignatureError):
+            return True

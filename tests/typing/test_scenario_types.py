@@ -115,7 +115,7 @@ def test_scenario_add_group_returns_group():
 @pytest.mark.mypy_testing
 def test_scenario_cli_method_type():
     scenario = Scenario(lambda: None, name='s')
-    reveal_type(scenario.cli)  # N: Revealed type is "def ()"
+    reveal_type(scenario.cli)  # N: Revealed type is "def (argv: Union[builtins.list[builtins.str], None] =)"
 
 
 # ---------------------------------------------------------------------------
@@ -145,3 +145,26 @@ def test_scenario_second_arg_str_rejected():
         Scenario(lambda: None, 'not_arguments', name='s')  # E: [arg-type]
     except TypeError:
         pass
+
+
+# ---------------------------------------------------------------------------
+# cli(argv=...) signature
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.mypy_testing
+def test_scenario_cli_default_call():
+    s = Scenario(lambda: None, name='s')
+    s.cli()
+
+
+@pytest.mark.mypy_testing
+def test_scenario_cli_with_argv():
+    s = Scenario(lambda: None, name='s')
+    s.cli(argv=['--number', '5'])
+
+
+@pytest.mark.mypy_testing
+def test_scenario_cli_with_none():
+    s = Scenario(lambda: None, name='s')
+    s.cli(argv=None)

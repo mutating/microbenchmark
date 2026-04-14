@@ -51,6 +51,18 @@ def test_is_primary_is_bool():
 
 
 @pytest.mark.mypy_testing
+def test_total_duration_is_float():
+    result = _make_result()
+    reveal_type(result.total_duration)  # N: Revealed type is "builtins.float"
+
+
+@pytest.mark.mypy_testing
+def test_functions_duration_is_float():
+    result = _make_result()
+    reveal_type(result.functions_duration)  # N: Revealed type is "builtins.float"
+
+
+@pytest.mark.mypy_testing
 def test_scenario_field_is_scenario_or_none():
     result = _make_result()
     reveal_type(result.scenario)  # N: Revealed type is "Union[microbenchmark.scenario.Scenario, None]"

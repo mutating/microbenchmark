@@ -113,6 +113,36 @@ print(arguments())
 #> arguments()
 ```
 
+### `match(function)`
+
+Checks whether `function` can be called with the arguments captured in this `arguments` instance. Returns `True` if the call is compatible with the function's signature, `False` otherwise.
+
+```python
+from microbenchmark import arguments
+
+args = arguments(1, 2)
+print(args.match(lambda a, b: None))
+#> True
+
+print(args.match(lambda a: None))
+#> False
+```
+
+Works with keyword arguments too:
+
+```python
+from microbenchmark import arguments
+
+args = arguments(key='value')
+print(args.match(lambda *, key: None))
+#> True
+
+print(args.match(lambda: None))
+#> False
+```
+
+**Note on unintrospectable callables:** For some exotic C-extension functions whose signatures Python cannot inspect at all, the check is silently skipped and `True` is returned. The function will be validated at runtime when the benchmark actually runs. Most common callables — including standard built-in functions like `len` — have introspectable signatures and are checked normally.
+
 ---
 
 ## Scenario
@@ -139,6 +169,21 @@ Scenario(
 - `doc` — an optional longer description.
 - `number` — how many times to call `function` per run. Must be at least `1`; passing `0` or a negative value raises `ValueError`.
 - `timer` — a zero-argument callable that returns the current time as a `float`. Defaults to `time.perf_counter`. Supply a custom clock to get deterministic measurements in tests:
+
+**Signature validation:** The constructor automatically checks that `function` can be called with the provided `arguments`. If the signatures are incompatible, a `sigmatch.SignatureMismatchError` is raised immediately — before the benchmark runs:
+
+```python
+from microbenchmark import Scenario, arguments
+from sigmatch import SignatureMismatchError
+
+try:
+    Scenario(lambda a: None, arguments(1, 2))
+except SignatureMismatchError as e:
+    print('caught:', e)
+#> caught: Scenario arguments arguments(1, 2) are incompatible with the signature of <lambda>
+```
+
+For the rare callables whose signatures Python cannot introspect at all, the validation is silently skipped. See [`arguments.match()`](#matchfunction) for details.
 
 ```python
 from microbenchmark import Scenario
@@ -224,32 +269,39 @@ print(len(result.durations))
 #> 1000
 ```
 
-### `cli()`
+### `cli(argv=None)`
 
 Turns the scenario into a small command-line program. Call `scenario.cli()` as the entry point of a script and it will parse `sys.argv`, run the benchmark, and print the result to stdout.
+
+Pass `argv` as a list of strings to override `sys.argv` — useful when calling `.cli()` programmatically or from the `microbenchmark` command-line tool.
 
 Supported arguments:
 
 - `--number N` — override the scenario's `number` for this run.
 - `--max-mean THRESHOLD` — exit with code `1` if the mean time (in seconds) exceeds `THRESHOLD`. Useful in CI.
+- `--histogram` — append an ASCII histogram of per-call timings inside the border. The histogram is 8 rows tall and fills the available inner width.
 - `--help` — print usage information and exit.
 
-Output format:
+Output format (each scenario is wrapped in a Unicode border):
 
 ```
-benchmark: <name>
-call:      <function>(<arguments>)
-doc:       <doc>
-runs:      <number>
-mean:      <mean>s
-median:    <median>s
-best:      <best>s
-worst:     <worst>s
-p95 mean:  <p95.mean>s
-p99 mean:  <p99.mean>s
+╭──────────────────────────────────╮
+│ benchmark: <name>                │
+│ call:      <function>(<args>)    │
+│ doc:       <doc>                 │
+│ runs:      <number>              │
+│ mean:      <mean>s               │
+│ median:    <median>s             │
+│ best:      <best>s               │
+│ worst:     <worst>s              │
+│ p95 mean:  <p95.mean>s           │
+│ p99 mean:  <p99.mean>s           │
+│ total:     <total_duration>s     │
+│ fn total:  <functions_duration>s │
+╰──────────────────────────────────╯
 ```
 
-The `doc:` line is omitted when `doc` is empty. The `call:` line shows the function name and its arguments. Times are in seconds. Labels are padded to the same width for alignment.
+The `doc:` line is omitted when `doc` is empty. The `call:` line shows the function name and its arguments. Times are in seconds. Labels are padded to the same width for alignment. `total:` is the wall-clock time of the whole benchmark loop; `fn total:` is the sum of per-call timings (`math.fsum(durations)`). The border width adapts to the terminal width (minimum 20 columns).
 
 If `--max-mean` is supplied and the actual mean exceeds the threshold, the output is printed in full and then a failure line is added before the process exits with code `1`:
 
@@ -272,32 +324,69 @@ if __name__ == '__main__':
 
 ```
 $ python benchmark.py
-benchmark: build_list
-call:      build_list()
-doc:       Build a list of 1000 integers.
-runs:      500
-mean:      0.000012s
-median:    0.000011s
-best:      0.000010s
-worst:     0.000018s
-p95 mean:  0.000011s
-p99 mean:  0.000012s
+╭─────────────────────────────────────────────────╮
+│ benchmark: build_list                           │
+│ call:      build_list()                         │
+│ doc:       Build a list of 1000 integers.       │
+│ runs:      500                                  │
+│ mean:      0.000012s                            │
+│ median:    0.000011s                            │
+│ best:      0.000010s                            │
+│ worst:     0.000018s                            │
+│ p95 mean:  0.000011s                            │
+│ p99 mean:  0.000012s                            │
+│ total:     0.006100s                            │
+│ fn total:  0.006000s                            │
+╰─────────────────────────────────────────────────╯
 ```
 
-The `doc:` line is omitted when `doc` is empty. Use `--number` to override the run count for this invocation. Use `--max-mean` to set a CI threshold:
+Use `--histogram` to append an ASCII distribution chart below the metrics:
+
+```
+$ python benchmark.py --histogram
+╭─────────────────────────────────────────────────╮
+│ benchmark: build_list                           │
+│ call:      build_list()                         │
+│ doc:       Build a list of 1000 integers.       │
+│ runs:      500                                  │
+│ mean:      0.000012s                            │
+│ median:    0.000011s                            │
+│ best:      0.000010s                            │
+│ worst:     0.000018s                            │
+│ p95 mean:  0.000011s                            │
+│ p99 mean:  0.000012s                            │
+│ total:     0.006100s                            │
+│ fn total:  0.006000s                            │
+│                                                 │
+│ █████████████████████████████████████████████   │
+│ █████████████████████████████████████████████   │
+│ ████████████████████████████████████████████    │
+│ ████████████████████████████   ████████████     │
+│ ████████████████████ ██████    █████████        │
+│ ██████████████ ████   ████      ██████          │
+│ ████████ ████   ██     ██        ████           │
+│ ████      ██     █               ██             │
+╰─────────────────────────────────────────────────╯
+```
+
+Use `--number` to override the run count for this invocation. Use `--max-mean` to set a CI threshold:
 
 ```
 $ python benchmark.py --max-mean 0.000001
-benchmark: build_list
-call:      build_list()
-doc:       Build a list of 1000 integers.
-runs:      500
-mean:      0.000012s
-median:    0.000011s
-best:      0.000010s
-worst:     0.000018s
-p95 mean:  0.000011s
-p99 mean:  0.000012s
+╭─────────────────────────────────────────────────╮
+│ benchmark: build_list                           │
+│ call:      build_list()                         │
+│ doc:       Build a list of 1000 integers.       │
+│ runs:      500                                  │
+│ mean:      0.000012s                            │
+│ median:    0.000011s                            │
+│ best:      0.000010s                            │
+│ worst:     0.000018s                            │
+│ p95 mean:  0.000011s                            │
+│ p99 mean:  0.000012s                            │
+│ total:     0.006100s                            │
+│ fn total:  0.006000s                            │
+╰─────────────────────────────────────────────────╯
 FAIL: mean 0.000012s exceeds --max-mean 0.000001s
 $ echo $?
 1
@@ -386,14 +475,15 @@ for result in results:
 #> s2
 ```
 
-### `cli()`
+### `cli(argv=None)`
 
-Runs all scenarios and prints their results to stdout. Each scenario block follows the same format as `Scenario.cli()`, and blocks are separated by a `---` line. The separator appears only between blocks, not after the last one.
+Runs all scenarios and prints their results to stdout. Each scenario block is displayed in a nested Unicode border. All inner blocks are wrapped together in a single outer border.
 
 Supported arguments:
 
 - `--number N` — passed to every scenario.
 - `--max-mean THRESHOLD` — exits with code `1` if any scenario's mean exceeds the threshold.
+- `--histogram` — append an ASCII histogram of per-call timings inside each inner border. The histogram is 8 rows tall and fills the available inner width.
 - `--help` — print usage information and exit.
 
 ```python
@@ -411,25 +501,34 @@ if __name__ == '__main__':
 
 ```
 $ python benchmarks.py
-benchmark: range_100
-call:      range_100()
-runs:      1000
-mean:      0.000003s
-median:    0.000003s
-best:      0.000002s
-worst:     0.000005s
-p95 mean:  0.000003s
-p99 mean:  0.000003s
----
-benchmark: range_1000
-call:      range_1000()
-runs:      1000
-mean:      0.000012s
-median:    0.000011s
-best:      0.000010s
-worst:     0.000018s
-p95 mean:  0.000011s
-p99 mean:  0.000012s
+╭────────────────────────────────────────────────────╮
+│ ╭──────────────────────────────────────────────╮  │
+│ │ benchmark: range_100                         │  │
+│ │ call:      range_100()                       │  │
+│ │ runs:      1000                              │  │
+│ │ mean:      0.000003s                         │  │
+│ │ median:    0.000003s                         │  │
+│ │ best:      0.000002s                         │  │
+│ │ worst:     0.000005s                         │  │
+│ │ p95 mean:  0.000003s                         │  │
+│ │ p99 mean:  0.000003s                         │  │
+│ │ total:     0.003200s                         │  │
+│ │ fn total:  0.003000s                         │  │
+│ ╰──────────────────────────────────────────────╯  │
+│ ╭──────────────────────────────────────────────╮  │
+│ │ benchmark: range_1000                        │  │
+│ │ call:      range_1000()                      │  │
+│ │ runs:      1000                              │  │
+│ │ mean:      0.000012s                         │  │
+│ │ median:    0.000011s                         │  │
+│ │ best:      0.000010s                         │  │
+│ │ worst:     0.000018s                         │  │
+│ │ p95 mean:  0.000011s                         │  │
+│ │ p99 mean:  0.000012s                         │  │
+│ │ total:     0.012500s                         │  │
+│ │ fn total:  0.012000s                         │  │
+│ ╰──────────────────────────────────────────────╯  │
+╰────────────────────────────────────────────────────╯
 ```
 
 ---
@@ -442,13 +541,15 @@ p99 mean:  0.000012s
 
 - `scenario: Scenario | None` — the `Scenario` that produced this result, or `None` if the result was restored from JSON.
 - `durations: tuple[float, ...]` — per-call timings in seconds, one entry per call, in the order they were measured.
+- `total_duration: float` — wall-clock time of the entire benchmark loop in seconds, measured from just before the first call to just after the last call. Warmup time is not included. Must be provided at construction time.
 - `mean: float` — arithmetic mean of `durations`, computed with `math.fsum` to minimize floating-point error. Computed automatically from `durations`.
+- `functions_duration: float` — sum of all per-call timings (`math.fsum(durations)`). Computed automatically from `durations`.
 - `median: float` — median of `durations`. Computed lazily on first access and cached for the lifetime of the result object.
 - `best: float` — the shortest individual timing. Computed automatically.
 - `worst: float` — the longest individual timing. Computed automatically.
 - `is_primary: bool` — `True` for results returned directly by `run()`, `False` for results derived via `percentile()`. Preserved during JSON round-trips.
 
-The `mean`, `best`, and `worst` fields are read-only computed values; they are not accepted as constructor arguments. The `median`, `p95`, and `p99` properties are cached lazily.
+The `mean`, `best`, `worst`, and `functions_duration` fields are read-only computed values (not accepted as constructor arguments). The `total_duration` field is an input: pass it to the constructor. The `median`, `p95`, and `p99` properties are cached lazily.
 
 ```python
 from microbenchmark import Scenario
@@ -459,6 +560,10 @@ print(len(result.durations))
 print(result.is_primary)
 #> True
 print(isinstance(result.median, float))
+#> True
+print(isinstance(result.total_duration, float))
+#> True
+print(isinstance(result.functions_duration, float))
 #> True
 ```
 
@@ -507,9 +612,11 @@ print(result.p95 is result.p95)   # cached — same object returned each time
 
 ### `to_json()` and `from_json()`
 
-`to_json()` serializes the result to a JSON string. It stores `durations`, `is_primary`, and the scenario's `name`, `doc`, and `number`.
+`to_json()` serializes the result to a JSON string. It stores `durations`, `is_primary`, `total_duration`, and the scenario's `name`, `doc`, and `number`. The `functions_duration` field is derived and not stored.
 
-`from_json()` is a class method that restores a `BenchmarkResult` from a JSON string produced by `to_json()`. Because the original callable cannot be serialized, the restored result has `scenario=None`. The `mean`, `best`, `worst`, and `median` fields are recomputed from `durations` on restoration.
+`from_json()` is a class method that restores a `BenchmarkResult` from a JSON string produced by `to_json()`. Because the original callable cannot be serialized, the restored result has `scenario=None`. The `mean`, `best`, `worst`, `median`, and `functions_duration` fields are recomputed from `durations` on restoration.
+
+**Backward compatibility:** JSON produced by older versions of `microbenchmark` that do not include `total_duration` can still be loaded. When `total_duration` is absent, `from_json()` falls back to `math.fsum(durations)` (equivalent to `functions_duration`), meaning `total_duration` will equal `functions_duration` (overhead is treated as zero).
 
 ```python
 from microbenchmark import Scenario, BenchmarkResult
@@ -529,6 +636,64 @@ print(restored.is_primary == result.is_primary)
 #> True
 print(restored.median == result.median)
 #> True
+```
+
+---
+
+## CLI
+
+The `microbenchmark` package installs a command-line tool of the same name. It lets you run any `Scenario` or `ScenarioGroup` object directly from the terminal without writing a wrapper script.
+
+### Usage
+
+```
+microbenchmark TARGET [OPTIONS]
+```
+
+`TARGET` is the fully-qualified import path to a `Scenario` or `ScenarioGroup` object in your module, in the form `module.path:attribute`:
+
+```
+microbenchmark my_pkg.bench:suite
+microbenchmark my_pkg.bench:single_scenario --number 500
+microbenchmark my_pkg.bench:suite --max-mean 0.001
+```
+
+The module must be importable — either installed in the current environment or located in the current working directory. If the module is a local file (e.g. `bench.py`), run the command from the directory that contains it:
+
+```
+microbenchmark bench:suite
+```
+
+### Options
+
+All options accepted by `Scenario.cli()` and `ScenarioGroup.cli()` are forwarded automatically:
+
+- `--number N` — override the iteration count for this run.
+- `--max-mean THRESHOLD` — exit with code `1` if any scenario's mean time (seconds) exceeds `THRESHOLD`.
+- `--help` — print usage and exit.
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | All benchmarks passed. |
+| 1 | A benchmark exceeded `--max-mean`. |
+| 3 | Invalid target specification or import error. |
+
+### Example
+
+Given a file `bench.py` in the current directory:
+
+```python
+from microbenchmark import Scenario, arguments
+
+scenario = Scenario(sorted, arguments([3, 1, 2]), name='sort', number=1000)
+```
+
+Run it directly:
+
+```
+$ microbenchmark bench:scenario --number 500
 ```
 
 ---

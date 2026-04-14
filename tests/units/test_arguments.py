@@ -1,6 +1,137 @@
 from __future__ import annotations
 
+import ctypes
+
 from microbenchmark import a, arguments
+
+# ---------------------------------------------------------------------------
+# match
+# ---------------------------------------------------------------------------
+
+
+def test_match_positional_compatible():
+    assert arguments(1, 2).match(lambda _a, _b: None) is True
+
+
+def test_match_positional_too_many():
+    assert arguments(1, 2, 3).match(lambda _a, _b: None) is False
+
+
+def test_match_positional_too_few():
+    assert arguments(1).match(lambda _a, _b: None) is False
+
+
+def test_match_empty_arguments_no_params():
+    assert arguments().match(lambda: None) is True
+
+
+def test_match_empty_arguments_with_params():
+    assert arguments().match(lambda _a: None) is False
+
+
+def test_match_keyword_compatible():
+    assert arguments(key='value').match(lambda *, key: None) is True  # noqa: ARG005
+
+
+def test_match_keyword_wrong_name():
+    assert arguments(other='value').match(lambda *, key: None) is False  # noqa: ARG005
+
+
+def test_match_keyword_against_positional():
+    assert arguments(key='value').match(lambda key: None) is True  # noqa: ARG005
+
+
+def test_match_defaults_short_call():
+    def f(a: object, b: object = 1) -> None: ...
+    assert arguments(1).match(f) is True
+
+
+def test_match_defaults_full_call():
+    def f(a: object, b: object = 1) -> None: ...
+    assert arguments(1, 2).match(f) is True
+
+
+def test_match_varargs_any_count():
+    def f(*args: object) -> None: ...
+    assert arguments(1, 2, 3).match(f) is True
+
+
+def test_match_varargs_empty():
+    def f(*args: object) -> None: ...
+    assert arguments().match(f) is True
+
+
+def test_match_kwargs_any_name():
+    def f(**kwargs: object) -> None: ...
+    assert arguments(foo=1, bar=2).match(f) is True
+
+
+def test_match_bound_method():
+    class C:
+        def m(self, a: object) -> None: ...
+    assert arguments(1).match(C().m) is True
+
+
+def test_match_bound_method_wrong_args():
+    class C:
+        def m(self, a: object) -> None: ...
+    assert arguments(1, 2).match(C().m) is False
+
+
+def test_match_class_callable():
+    class D:
+        def __init__(self, a: object, b: object) -> None: ...
+    assert arguments(1, 2).match(D) is True
+
+
+def test_match_class_callable_wrong_args():
+    class D:
+        def __init__(self, a: object, b: object) -> None: ...
+    assert arguments(1).match(D) is False
+
+
+def test_match_builtin_correct_args():
+    # len accepts exactly one positional argument
+    assert arguments('hello').match(len) is True
+
+
+def test_match_builtin_too_many_args():
+    # len only accepts one arg, so two args → False
+    assert arguments(1, 2).match(len) is False
+
+
+def test_match_builtin_no_args():
+    # len requires one arg, so zero args → False
+    assert arguments().match(len) is False
+
+
+def test_match_unintrospectable_skips_returns_true():
+    # ctypes.ArgumentError has no inspectable signature; check is skipped → True
+    assert arguments(1).match(ctypes.ArgumentError) is True
+
+
+def test_match_callable_object():
+    class Callable:
+        def __call__(self, a: object, b: object) -> None: ...
+    assert arguments(1, 2).match(Callable()) is True
+
+
+def test_match_callable_object_wrong_args():
+    class Callable:
+        def __call__(self, a: object, b: object) -> None: ...
+    assert arguments(1).match(Callable()) is False
+
+
+def test_match_returns_bool_true():
+    result = arguments(1).match(lambda _a: None)
+    assert isinstance(result, bool)
+    assert result is True
+
+
+def test_match_returns_bool_false():
+    result = arguments(1, 2).match(lambda _a: None)
+    assert isinstance(result, bool)
+    assert result is False
 
 # ---------------------------------------------------------------------------
 # Construction

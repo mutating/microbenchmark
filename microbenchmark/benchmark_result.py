@@ -19,6 +19,7 @@ class _ScenarioMeta(TypedDict):
 
 class _ResultJson(TypedDict):
     durations: list[float]
+    total_duration: float
     is_primary: bool
     scenario: _ScenarioMeta | None
 
@@ -27,16 +28,19 @@ class _ResultJson(TypedDict):
 class BenchmarkResult:
     scenario: Scenario | None
     durations: tuple[float, ...]
+    total_duration: float
     is_primary: bool = True
 
     mean: float = field(init=False)
     best: float = field(init=False)
     worst: float = field(init=False)
+    functions_duration: float = field(init=False)
 
     def __post_init__(self) -> None:
         self.mean = math.fsum(self.durations) / len(self.durations)
         self.best = min(self.durations)
         self.worst = max(self.durations)
+        self.functions_duration = math.fsum(self.durations)
 
     def percentile(self, p: float) -> BenchmarkResult:
         if not (0 < p <= 100):
@@ -46,6 +50,7 @@ class BenchmarkResult:
         return BenchmarkResult(
             scenario=self.scenario,
             durations=trimmed,
+            total_duration=0.0,
             is_primary=False,
         )
 
@@ -73,6 +78,7 @@ class BenchmarkResult:
             scenario_meta = None
         data: _ResultJson = _ResultJson(
             durations=list(self.durations),
+            total_duration=self.total_duration,
             is_primary=self.is_primary,
             scenario=scenario_meta,
         )
@@ -91,8 +97,14 @@ class BenchmarkResult:
             raise ValueError('durations must be a list')
         if not isinstance(raw_is_primary, bool):
             raise ValueError('is_primary must be a bool')
+        raw_total: object = raw.get('total_duration')
+        if raw_total is None:
+            total_duration = math.fsum(float(d) for d in raw_durations)
+        else:
+            total_duration = float(raw_total)  # type: ignore[arg-type]
         return cls(
             scenario=None,
             durations=tuple(float(d) for d in raw_durations),
+            total_duration=total_duration,
             is_primary=raw_is_primary,
         )

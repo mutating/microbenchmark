@@ -13,10 +13,11 @@ def _make_result(
     durations: tuple[float, ...],
     scenario: Scenario | None = None,
     is_primary: bool = True,
+    total_duration: float = 0.0,
 ) -> BenchmarkResult:
     if scenario is None:
         scenario = Scenario(lambda: None, name='test', number=len(durations) or 1)
-    return BenchmarkResult(scenario=scenario, durations=durations, is_primary=is_primary)
+    return BenchmarkResult(scenario=scenario, durations=durations, total_duration=total_duration, is_primary=is_primary)
 
 
 # ---------------------------------------------------------------------------
@@ -29,6 +30,7 @@ def test_all_fields_stored():
     result = BenchmarkResult(
         scenario=scenario,
         durations=(0.1, 0.2, 0.3),
+        total_duration=1.0,
         is_primary=True,
     )
 
@@ -47,7 +49,7 @@ def test_empty_durations_raises():
     scenario = Scenario(lambda: None, name='s', number=1)
 
     with pytest.raises(ZeroDivisionError):
-        BenchmarkResult(scenario=scenario, durations=(), is_primary=True)
+        BenchmarkResult(scenario=scenario, durations=(), total_duration=0.0, is_primary=True)
 
 
 def test_inf_durations_fields():
@@ -122,13 +124,13 @@ def test_all_equal_durations():
 
 def test_scenario_identity():
     scenario = Scenario(lambda: None, name='check')
-    result = BenchmarkResult(scenario=scenario, durations=(0.1,), is_primary=True)
+    result = BenchmarkResult(scenario=scenario, durations=(0.1,), total_duration=0.0, is_primary=True)
 
     assert result.scenario is scenario
 
 
 def test_scenario_none():
-    result = BenchmarkResult(scenario=None, durations=(0.1,), is_primary=True)
+    result = BenchmarkResult(scenario=None, durations=(0.1,), total_duration=0.0, is_primary=True)
 
     assert result.scenario is None
 
@@ -263,7 +265,7 @@ def test_percentile_on_derived_result():
 
 def test_percentile_scenario_preserved():
     scenario = Scenario(lambda: None, name='s')
-    result = BenchmarkResult(scenario=scenario, durations=(1.0, 2.0, 3.0), is_primary=True)
+    result = BenchmarkResult(scenario=scenario, durations=(1.0, 2.0, 3.0), total_duration=0.0, is_primary=True)
     trimmed = result.percentile(100)
 
     assert trimmed.scenario is scenario
@@ -435,7 +437,7 @@ def test_to_json_contains_is_primary():
 
 def test_to_json_contains_scenario_metadata():
     scenario = Scenario(lambda: None, name='myname', doc='mydoc', number=42)
-    result = BenchmarkResult(scenario=scenario, durations=(0.1,), is_primary=True)
+    result = BenchmarkResult(scenario=scenario, durations=(0.1,), total_duration=0.0, is_primary=True)
     data = json.loads(result.to_json())
 
     assert data['scenario']['name'] == 'myname'
@@ -451,7 +453,7 @@ def test_to_json_derived_is_primary_false():
 
 
 def test_to_json_scenario_none_is_null():
-    result = BenchmarkResult(scenario=None, durations=(0.1,), is_primary=True)
+    result = BenchmarkResult(scenario=None, durations=(0.1,), total_duration=0.0, is_primary=True)
     data = json.loads(result.to_json())
 
     assert data['scenario'] is None
@@ -628,3 +630,64 @@ def test_from_json_negative_durations_accepted():
 
     assert restored.mean == pytest.approx(0.05)
     assert restored.best == -0.1
+
+
+# ---------------------------------------------------------------------------
+# total_duration and functions_duration
+# ---------------------------------------------------------------------------
+
+
+def test_total_duration_stored():
+    result = BenchmarkResult(scenario=None, durations=(0.1, 0.2), is_primary=True, total_duration=0.5)
+
+    assert result.total_duration == 0.5
+
+
+def test_functions_duration_is_fsum():
+    durations = (0.1, 0.2, 0.3)
+    result = BenchmarkResult(scenario=None, durations=durations, is_primary=True, total_duration=1.0)
+
+    assert result.functions_duration == math.fsum(durations)
+
+
+def test_functions_duration_precision():
+    durations = (1e20, 1.0, -1e20)
+    result = BenchmarkResult(scenario=None, durations=durations, is_primary=True, total_duration=0.0)
+
+    assert result.functions_duration == math.fsum(durations)
+
+
+def test_functions_duration_not_in_json():
+    result = BenchmarkResult(scenario=None, durations=(0.1, 0.2), is_primary=True, total_duration=0.5)
+    data = json.loads(result.to_json())
+
+    assert 'functions_duration' not in data
+
+
+def test_total_duration_in_json():
+    result = BenchmarkResult(scenario=None, durations=(0.1, 0.2), is_primary=True, total_duration=0.5)
+    data = json.loads(result.to_json())
+
+    assert 'total_duration' in data
+    assert data['total_duration'] == 0.5
+
+
+def test_total_duration_json_round_trip():
+    result = BenchmarkResult(scenario=None, durations=(0.1, 0.2), is_primary=True, total_duration=0.5)
+    restored = BenchmarkResult.from_json(result.to_json())
+
+    assert restored.total_duration == 0.5
+
+
+def test_from_json_without_total_duration_falls_back_to_fsum():
+    payload = json.dumps({'durations': [0.1, 0.2], 'is_primary': True})
+    restored = BenchmarkResult.from_json(payload)
+
+    assert restored.total_duration == math.fsum([0.1, 0.2])
+
+
+def test_functions_duration_equals_sum():
+    durations = (0.5, 0.3, 0.2)
+    result = BenchmarkResult(scenario=None, durations=durations, is_primary=True, total_duration=1.0)
+
+    assert result.functions_duration == pytest.approx(1.0)
