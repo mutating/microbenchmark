@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
 import textwrap
 
 from microbenchmark._render import draw_box, draw_histogram, draw_nested, terminal_width
+
+_UTF8_ENV = {**os.environ, 'PYTHONUTF8': '1'}
 
 # ---------------------------------------------------------------------------
 # terminal_width
@@ -213,6 +216,7 @@ def test_scenario_cli_output_has_top_border():
         encoding='utf-8',
         timeout=30,
         check=False,
+        env=_UTF8_ENV,
     )
 
     assert '╭' in proc.stdout
@@ -242,6 +246,7 @@ def test_scenario_group_cli_output_has_nested_borders():
         encoding='utf-8',
         timeout=30,
         check=False,
+        env=_UTF8_ENV,
     )
 
     assert proc.stdout.count('╭') >= 3  # outer + 2 inner
@@ -395,6 +400,7 @@ def test_scenario_cli_histogram_output_has_block_chars():
         encoding='utf-8',
         timeout=30,
         check=False,
+        env=_UTF8_ENV,
     )
 
     assert '█' in proc.stdout

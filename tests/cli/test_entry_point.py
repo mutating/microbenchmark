@@ -13,9 +13,8 @@ def run_entry(
     timeout: int = 30,
     env_path: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    env = None
+    env = {**os.environ, 'PYTHONUTF8': '1'}
     if env_path is not None:
-        env = dict(os.environ)
         env['PYTHONPATH'] = env_path
     return subprocess.run(
         [sys.executable, '-m', 'microbenchmark', *args],

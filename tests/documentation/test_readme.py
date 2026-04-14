@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import subprocess
 import sys
 import textwrap
@@ -12,6 +13,8 @@ from full_match import match
 from sigmatch import SignatureMismatchError
 
 from microbenchmark import BenchmarkResult, Scenario, ScenarioGroup, a, arguments
+
+_UTF8_ENV = {**os.environ, 'PYTHONUTF8': '1'}
 
 # ---------------------------------------------------------------------------
 # Quick start
@@ -568,6 +571,7 @@ def test_cli_entry_scenario_runs():
         timeout=30,
         check=False,
         cwd=project_root,
+        env=_UTF8_ENV,
     )
 
     assert proc.returncode == 0
@@ -584,6 +588,7 @@ def test_cli_entry_group_runs():
         timeout=30,
         check=False,
         cwd=project_root,
+        env=_UTF8_ENV,
     )
 
     assert proc.returncode == 0
@@ -600,6 +605,7 @@ def test_cli_entry_bad_target_exit_3():
         timeout=30,
         check=False,
         cwd=project_root,
+        env=_UTF8_ENV,
     )
 
     assert proc.returncode == 3
@@ -631,6 +637,7 @@ def test_scenario_cli_histogram_produces_block_chars():
         encoding='utf-8',
         timeout=30,
         check=False,
+        env=_UTF8_ENV,
     )
 
     assert proc.returncode == 0

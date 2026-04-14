@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import textwrap
 
 from microbenchmark import Scenario, ScenarioGroup
+
+_UTF8_ENV = {**os.environ, 'PYTHONUTF8': '1'}
 
 
 def run_script(script: str, *args: str, timeout: int = 30) -> subprocess.CompletedProcess[str]:
@@ -15,6 +18,7 @@ def run_script(script: str, *args: str, timeout: int = 30) -> subprocess.Complet
         encoding='utf-8',
         timeout=timeout,
         check=False,
+        env=_UTF8_ENV,
     )
 
 
