@@ -220,3 +220,22 @@ def test_entry_no_args_via_module_invocation():
     )
 
     assert proc.returncode == 3
+
+
+# ---------------------------------------------------------------------------
+# --histogram forwarding
+# ---------------------------------------------------------------------------
+
+
+def test_entry_histogram_scenario_produces_block_chars():
+    proc = run_entry('tests.cli.fixtures.sample:scenario', '--number', '3', '--histogram')
+
+    assert proc.returncode == 0
+    assert '█' in proc.stdout
+
+
+def test_entry_histogram_group_produces_block_chars():
+    proc = run_entry('tests.cli.fixtures.sample:group', '--number', '3', '--histogram')
+
+    assert proc.returncode == 0
+    assert '█' in proc.stdout

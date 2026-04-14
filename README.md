@@ -670,6 +670,7 @@ All options accepted by `Scenario.cli()` and `ScenarioGroup.cli()` are forwarded
 
 - `--number N` — override the iteration count for this run.
 - `--max-mean THRESHOLD` — exit with code `1` if any scenario's mean time (seconds) exceeds `THRESHOLD`.
+- `--histogram` — append an ASCII histogram of per-call timings inside the output border.
 - `--help` — print usage and exit.
 
 ### Exit codes

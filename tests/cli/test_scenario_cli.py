@@ -374,6 +374,13 @@ def test_help_does_not_run_benchmark():
     assert 'benchmark:' not in proc.stdout
 
 
+def test_help_mentions_histogram():
+    proc = run_script(scenario_script(), '--help')
+    combined = proc.stdout + proc.stderr
+
+    assert '--histogram' in combined
+
+
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
