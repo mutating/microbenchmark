@@ -9,7 +9,13 @@ from printo import describe_data_object
 from printo.reprs import superrepr
 from sigmatch import SignatureMismatchError
 
-from microbenchmark._render import draw_box, draw_histogram, terminal_width
+from microbenchmark._render import (
+    draw_box,
+    draw_histogram,
+    draw_histogram_axis,
+    histogram_bounds,
+    terminal_width,
+)
 from microbenchmark.arguments import arguments as Arguments  # noqa: N812
 from microbenchmark.benchmark_result import BenchmarkResult
 
@@ -105,8 +111,11 @@ class Scenario:
         width = terminal_width()
         lines = _render_result(result)
         if cli_args.histogram:
+            hist_width = width - 4
             lines.append('')
-            lines.extend(draw_histogram(list(result.durations), width - 4, 8))
+            lines.extend(draw_histogram(list(result.durations), hist_width, 8))
+            lo, hi = histogram_bounds(result.durations)
+            lines.append(draw_histogram_axis(lo, hi, hist_width))
         box = draw_box(lines, width)
         sys.stdout.write('\n'.join(box) + '\n')
 

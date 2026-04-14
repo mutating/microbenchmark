@@ -6,7 +6,14 @@ import subprocess
 import sys
 import textwrap
 
-from microbenchmark._render import draw_box, draw_histogram, draw_nested, terminal_width
+from microbenchmark._render import (
+    draw_box,
+    draw_histogram,
+    draw_histogram_axis,
+    draw_nested,
+    histogram_bounds,
+    terminal_width,
+)
 
 _UTF8_ENV = {**os.environ, 'PYTHONUTF8': '1'}
 
@@ -254,6 +261,100 @@ def test_scenario_group_cli_output_has_nested_borders():
 
 
 # ---------------------------------------------------------------------------
+# histogram_bounds
+# ---------------------------------------------------------------------------
+
+
+def test_histogram_bounds_returns_tuple():
+    lo, hi = histogram_bounds([0.001, 0.002, 0.003])
+
+    assert isinstance(lo, float)
+    assert isinstance(hi, float)
+
+
+def test_histogram_bounds_lo_is_min():
+    lo, _ = histogram_bounds([0.003, 0.001, 0.002])
+
+    assert lo == 0.001
+
+
+def test_histogram_bounds_hi_is_p99():
+    # 200 values; p99_idx = int(200 * 0.99) = 198 → sorted[198]
+    durs = [i * 0.001 for i in range(1, 201)]
+    _, hi = histogram_bounds(durs)
+
+    assert hi == durs[198]
+
+
+def test_histogram_bounds_single_value():
+    lo, hi = histogram_bounds([0.005])
+
+    assert lo == hi == 0.005
+
+
+# ---------------------------------------------------------------------------
+# draw_histogram_axis
+# ---------------------------------------------------------------------------
+
+
+def test_draw_histogram_axis_returns_str():
+    result = draw_histogram_axis(0.000005, 0.000006, 40)
+
+    assert isinstance(result, str)
+
+
+def test_draw_histogram_axis_width_matches():
+    width = 40
+    result = draw_histogram_axis(0.000005, 0.000006, width)
+
+    assert len(result) == width
+
+
+def test_draw_histogram_axis_contains_left_label():
+    result = draw_histogram_axis(0.000005, 0.000006, 40)
+
+    assert '5.00\u03bcs' in result
+
+
+def test_draw_histogram_axis_contains_right_label():
+    result = draw_histogram_axis(0.000005, 0.000006, 40)
+
+    assert 'p99' in result
+    assert '6.00\u03bcs' in result
+
+
+def test_draw_histogram_axis_units_ns():
+    result = draw_histogram_axis(1e-10, 2e-10, 40)
+
+    assert 'ns' in result
+
+
+def test_draw_histogram_axis_units_ms():
+    result = draw_histogram_axis(0.001, 0.002, 40)
+
+    assert 'ms' in result
+
+
+def test_draw_histogram_axis_units_s():
+    result = draw_histogram_axis(1.5, 2.0, 40)
+
+    assert 's' in result
+
+
+def test_draw_histogram_axis_zero_width_returns_empty():
+    result = draw_histogram_axis(0.000005, 0.000006, 0)
+
+    assert result == ''
+
+
+def test_draw_histogram_axis_truncates_when_too_narrow():
+    # width smaller than left label + space + right label → fallback to left only
+    result = draw_histogram_axis(0.000005, 0.000006, 5)
+
+    assert len(result) == 5
+
+
+# ---------------------------------------------------------------------------
 # draw_histogram
 # ---------------------------------------------------------------------------
 
@@ -338,12 +439,25 @@ def test_draw_histogram_all_equal_height_matches():
     assert all(len(row) == 11 for row in result)
 
 
-def test_draw_histogram_only_block_or_space():
+def test_draw_histogram_only_valid_chars():
+    # Cells may be full block, one of seven partial-fill blocks, or space.
     result = draw_histogram([0.001, 0.002, 0.003], 10, 4)
+    valid = set(' \u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588')
 
     for row in result:
         for ch in row:
-            assert ch in ('█', ' ')
+            assert ch in valid
+
+
+def test_draw_histogram_partial_blocks_appear():
+    # With non-equal bucket counts the tallest bar fills height=5 rows and a
+    # shorter bar gets a fractional top row rendered as a partial block.
+    # counts → [4, 0, ..., 0, 3]: height_float for bucket-9 = 3/4 * 5 = 3.75
+    result = draw_histogram([0.001] * 4 + [0.003] * 3, 10, 5)
+    all_text = ''.join(result)
+    partial = '\u2581\u2582\u2583\u2584\u2585\u2586\u2587'
+
+    assert any(ch in partial for ch in all_text)
 
 
 def test_draw_histogram_strings_in_list():

@@ -3,7 +3,14 @@ from __future__ import annotations
 import argparse
 import sys
 
-from microbenchmark._render import draw_box, draw_histogram, draw_nested, terminal_width
+from microbenchmark._render import (
+    draw_box,
+    draw_histogram,
+    draw_histogram_axis,
+    draw_nested,
+    histogram_bounds,
+    terminal_width,
+)
 from microbenchmark.benchmark_result import BenchmarkResult
 from microbenchmark.scenario import Scenario, _render_result
 
@@ -51,8 +58,11 @@ class ScenarioGroup:
             results.append(result)
             lines = _render_result(result)
             if cli_args.histogram:
+                hist_width = inner_width - 4
                 lines.append('')
-                lines.extend(draw_histogram(list(result.durations), inner_width - 4, 8))
+                lines.extend(draw_histogram(list(result.durations), hist_width, 8))
+                lo, hi = histogram_bounds(result.durations)
+                lines.append(draw_histogram_axis(lo, hi, hist_width))
             inner_blocks.append(draw_box(lines, inner_width))
 
         nested = draw_nested(inner_blocks, [], width)

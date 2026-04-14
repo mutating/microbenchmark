@@ -3,6 +3,19 @@ from __future__ import annotations
 import shutil
 from collections.abc import Sequence
 
+_BLOCKS = ' ▁▂▃▄▅▆▇█'
+
+
+def _format_duration(t: float) -> str:
+    """Format *t* seconds into a compact human-readable string."""
+    if t >= 1.0:
+        return f'{t:.3f}s'
+    if t >= 1e-3:
+        return f'{t * 1e3:.2f}ms'
+    if t >= 1e-6:
+        return f'{t * 1e6:.2f}\u03bcs'
+    return f'{t * 1e9:.2f}ns'
+
 
 def terminal_width() -> int:
     """Return the current terminal width, clamped to a minimum of 20."""
@@ -77,22 +90,58 @@ def draw_nested(
     return result
 
 
+def histogram_bounds(durations: Sequence[float]) -> tuple[float, float]:
+    """Return ``(lo, hi)`` bounds for a histogram: minimum and p99 value.
+
+    The p99 clip prevents extreme outliers from compressing the bulk of the
+    distribution into the leftmost column.
+
+    Args:
+        durations: Sequence of per-call timings in seconds.
+    """
+    sorted_durs = sorted(durations)
+    lo = sorted_durs[0]
+    p99_idx = min(len(sorted_durs) - 1, int(len(sorted_durs) * 0.99))
+    return lo, sorted_durs[p99_idx]
+
+
+def draw_histogram_axis(lo: float, hi: float, width: int) -> str:
+    """Return a single-line x-axis label for a histogram with bounds *lo*/*hi*.
+
+    The minimum value is left-aligned; the p99 clip value is right-aligned.
+    Both are formatted with auto-selected time units (ns / μs / ms / s).
+
+    Args:
+        lo: Minimum value displayed on the x-axis.
+        hi: Maximum value (p99 clip point) displayed on the x-axis.
+        width: Total width of the label in characters.
+    """
+    if width < 1:
+        return ''
+    left = _format_duration(lo)
+    right = _format_duration(hi) + ' (p99)'
+    if len(left) + 1 + len(right) > width:
+        return left[:width]
+    spaces = width - len(left) - len(right)
+    return left + ' ' * spaces + right
+
+
 def draw_histogram(durations: Sequence[float], width: int, height: int) -> list[str]:
     """Render an ASCII bar chart of *durations* as a ``height`` x ``width`` grid.
 
-    The output is ``width`` characters wide and ``height`` rows tall.  Filled
-    cells use ``'█'``; empty cells use ``' '``.  Returns an empty list when any
-    dimension is zero/negative or when *durations* is empty.
+    The output is ``width`` characters wide and ``height`` rows tall.  Each
+    cell uses one of the Unicode block characters ``' ▁▂▃▄▅▆▇█'`` so bar
+    heights are resolved at 1/8-row precision, giving smooth transitions
+    between adjacent buckets.  Returns an empty list when any dimension is
+    zero/negative or when *durations* is empty.
 
     Internally the data is bucketed into at most 20 bins regardless of
     *width*.  Each bin is then rendered as ``width // n_buckets`` characters
-    wide.  This prevents timer-quantisation artefacts (where most measurements
-    snap to a handful of discrete nanosecond values) from producing a single
-    column spike with stray isolated pixels elsewhere.
+    wide.  This prevents timer-quantisation artefacts from producing a single
+    spike with stray isolated pixels.
 
-    The x-axis upper bound is clipped to the p99 value to prevent extreme
-    outliers from compressing the bulk of the distribution.  Values above the
-    p99 clip point are omitted from buckets.
+    The x-axis upper bound is clipped to the p99 value via
+    :func:`histogram_bounds`.  Values above the clip point are omitted.
 
     When all values are identical (``hi == lo``), the middle bin is drawn
     full-height and all others are left empty.
@@ -105,14 +154,10 @@ def draw_histogram(durations: Sequence[float], width: int, height: int) -> list[
     if width < 1 or height < 1 or len(durations) == 0:
         return []
 
-    sorted_durs = sorted(durations)
-    lo = sorted_durs[0]
-    p99_idx = min(len(sorted_durs) - 1, int(len(sorted_durs) * 0.99))
-    hi = sorted_durs[p99_idx]
+    lo, hi = histogram_bounds(durations)
 
-    # Cap the number of data buckets at 20 so that each bucket spans a
-    # visible fraction of the output width and adjacent quantised values are
-    # merged into the same bar.
+    # Cap the number of data buckets at 20 so that adjacent quantised timer
+    # values are merged into the same wider bar.
     n_buckets = min(width, 20)
     counts = [0] * n_buckets
 
@@ -127,16 +172,22 @@ def draw_histogram(durations: Sequence[float], width: int, height: int) -> list[
             counts[idx] += 1
 
     max_count = max(counts)
-    bar_heights = [
-        round(c / max_count * height) if c > 0 else 0
+    bar_heights_float = [
+        c / max_count * height if c > 0 else 0.0
         for c in counts
     ]
 
     rows: list[str] = []
     for row in range(height - 1, -1, -1):
-        line = ''.join(
-            '█' if bar_heights[col * n_buckets // width] > row else ' '
-            for col in range(width)
-        )
-        rows.append(line)
+        line_chars: list[str] = []
+        for col in range(width):
+            bh = bar_heights_float[col * n_buckets // width]
+            if bh >= row + 1:
+                line_chars.append('█')
+            elif bh > row:
+                frac = bh - row
+                line_chars.append(_BLOCKS[max(1, min(8, round(frac * 8)))])
+            else:
+                line_chars.append(' ')
+        rows.append(''.join(line_chars))
     return rows
