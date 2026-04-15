@@ -68,9 +68,7 @@ class Scenario:
     def run(self, warmup: int = 0) -> BenchmarkResult:
         timer = self._timer
         for _ in range(max(warmup, 0)):
-            timer()
             self._call_once()
-            timer()
         durations: list[float] = []
         loop_start = timer()
         for _ in range(self.number):
@@ -160,7 +158,8 @@ def _fn_call_str(function: object, arguments: Arguments | None) -> str:
 
 def _render_result(result: BenchmarkResult) -> list[str]:
     scenario = result.scenario
-    assert scenario is not None
+    if scenario is None:
+        raise ValueError('BenchmarkResult.scenario must not be None for rendering')
     call_str = _fn_call_str(scenario.function, scenario._arguments)
     label_width = len('p95 mean:')
     lines: list[str] = []

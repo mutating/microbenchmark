@@ -6,6 +6,8 @@ import subprocess
 import sys
 import textwrap
 
+import pytest
+
 from microbenchmark._render import (
     draw_box,
     draw_histogram,
@@ -290,6 +292,11 @@ def test_histogram_bounds_single_value():
     lo, hi = histogram_bounds([0.005])
 
     assert lo == hi == 0.005
+
+
+def test_histogram_bounds_empty_raises():
+    with pytest.raises(ValueError, match='empty'):
+        histogram_bounds([])
 
 
 # ---------------------------------------------------------------------------

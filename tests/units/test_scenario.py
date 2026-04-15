@@ -9,7 +9,7 @@ from full_match import match
 from sigmatch import SignatureMismatchError
 
 from microbenchmark import BenchmarkResult, Scenario, ScenarioGroup, arguments
-from microbenchmark.scenario import _fn_call_str
+from microbenchmark.scenario import _fn_call_str, _render_result
 
 # ---------------------------------------------------------------------------
 # Construction
@@ -354,7 +354,7 @@ def test_custom_timer_stateful():
     scenario = Scenario(lambda: None, name='s', number=3, timer=fake_timer)
     result = scenario.run(warmup=2)
 
-    assert tick[0] == 12  # warmup: 2*2=4, loop_start: 1, run: 3*2=6, loop_end: 1 → 12
+    assert tick[0] == 8  # loop_start: 1, run: 3*2=6, loop_end: 1 → 8 (warmup has no timer calls)
     assert len(result.durations) == 3
     assert result.durations == pytest.approx((1.0, 1.0, 1.0))
 
@@ -603,3 +603,9 @@ def test_fn_call_str_non_oserror_propagates():
 
     with pytest.raises(ValueError, match='unexpected'), patch('microbenchmark.scenario.superrepr', side_effect=ValueError('unexpected')):
         _fn_call_str(fn, None)
+
+
+def test_render_result_raises_when_scenario_is_none():
+    result = BenchmarkResult.from_json('{"durations":[0.001,0.002],"is_primary":true,"scenario":null}')
+    with pytest.raises(ValueError, match='scenario must not be None'):
+        _render_result(result)

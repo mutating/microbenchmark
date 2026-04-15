@@ -3,12 +3,9 @@ from __future__ import annotations
 import importlib
 import sys
 from pathlib import Path
-from typing import Union
 
 from microbenchmark.scenario import Scenario
 from microbenchmark.scenario_group import ScenarioGroup
-
-_Target = Union[Scenario, ScenarioGroup]
 
 
 def main(argv: list[str] | None = None) -> None:

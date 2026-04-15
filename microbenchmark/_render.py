@@ -98,7 +98,12 @@ def histogram_bounds(durations: Sequence[float]) -> tuple[float, float]:
 
     Args:
         durations: Sequence of per-call timings in seconds.
+
+    Raises:
+        ValueError: If *durations* is empty.
     """
+    if not durations:
+        raise ValueError('durations must not be empty')
     sorted_durs = sorted(durations)
     lo = sorted_durs[0]
     p99_idx = min(len(sorted_durs) - 1, int(len(sorted_durs) * 0.99))
