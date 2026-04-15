@@ -38,8 +38,9 @@ def test_draw_histogram_returns_list_of_str():
 
 @pytest.mark.mypy_testing
 def test_histogram_bounds_returns_tuple():
-    result = histogram_bounds([0.001, 0.002])
-    reveal_type(result)  # N: Revealed type is "tuple[builtins.float, builtins.float]"
+    lo, hi = histogram_bounds([0.001, 0.002])
+    reveal_type(lo)  # N: Revealed type is "builtins.float"
+    reveal_type(hi)  # N: Revealed type is "builtins.float"
 
 
 @pytest.mark.mypy_testing
