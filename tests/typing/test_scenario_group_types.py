@@ -86,7 +86,7 @@ def test_scenario_radd_group_returns_group():
 @pytest.mark.mypy_testing
 def test_group_cli_method_type():
     group = ScenarioGroup()
-    reveal_type(group.cli)  # N: Revealed type is "def ()"
+    reveal_type(group.cli)  # N: Revealed type is "def (argv: Union[builtins.list[builtins.str], None] =)"
 
 
 # ---------------------------------------------------------------------------

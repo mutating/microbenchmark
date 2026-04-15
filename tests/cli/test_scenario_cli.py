@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import textwrap
+
+from microbenchmark import Scenario
+
+_UTF8_ENV = {**os.environ, 'PYTHONUTF8': '1'}
 
 
 def run_script(script: str, *args: str, timeout: int = 30) -> subprocess.CompletedProcess[str]:
@@ -13,6 +18,7 @@ def run_script(script: str, *args: str, timeout: int = 30) -> subprocess.Complet
         encoding='utf-8',
         timeout=timeout,
         check=False,
+        env=_UTF8_ENV,
     )
 
 
@@ -109,6 +115,29 @@ def callable_class_script() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Border output
+# ---------------------------------------------------------------------------
+
+
+def test_cli_output_has_top_border():
+    proc = run_script(scenario_script())
+
+    assert '╭' in proc.stdout
+
+
+def test_cli_output_has_bottom_border():
+    proc = run_script(scenario_script())
+
+    assert '╰' in proc.stdout
+
+
+def test_cli_output_has_side_borders():
+    proc = run_script(scenario_script())
+
+    assert '│' in proc.stdout
+
+
+# ---------------------------------------------------------------------------
 # Basic output
 # ---------------------------------------------------------------------------
 
@@ -190,6 +219,19 @@ def test_cli_shows_p99_mean():
     proc = run_script(scenario_script())
 
     assert 'p99 mean:' in proc.stdout
+
+
+def test_cli_shows_total():
+    proc = run_script(scenario_script())
+    total_lines = [line for line in proc.stdout.splitlines() if 'total:' in line and 'fn total:' not in line]
+
+    assert len(total_lines) == 1
+
+
+def test_cli_shows_fn_total():
+    proc = run_script(scenario_script())
+
+    assert 'fn total:' in proc.stdout
 
 
 def test_cli_shows_function_name():
@@ -336,6 +378,13 @@ def test_help_does_not_run_benchmark():
     assert 'benchmark:' not in proc.stdout
 
 
+def test_help_mentions_histogram():
+    proc = run_script(scenario_script(), '--help')
+    combined = proc.stdout + proc.stderr
+
+    assert '--histogram' in combined
+
+
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
@@ -358,3 +407,91 @@ def test_number_and_max_mean_combined():
 
     assert proc.returncode == 0
     assert 'benchmark: bench' in proc.stdout
+
+
+# ---------------------------------------------------------------------------
+# cli(argv=...) parameter
+# ---------------------------------------------------------------------------
+
+
+def test_cli_argv_overrides_sysargv():
+    tick = [0.0]
+
+    def fake_timer() -> float:
+        tick[0] += 0.001
+        return tick[0]
+
+    s = Scenario(lambda: None, name='argv_test', number=10, timer=fake_timer)
+
+    original_write = sys.stdout.write
+    captured: list[str] = []
+
+    def capture_write(text: str) -> int:
+        captured.append(text)
+        return len(text)
+
+    sys.stdout.write = capture_write  # type: ignore[method-assign]
+    try:
+        s.cli(argv=['--number', '3'])
+    finally:
+        sys.stdout.write = original_write  # type: ignore[method-assign]
+
+    combined = ''.join(captured)
+    assert 'argv_test' in combined
+    assert '3' in combined
+
+
+def test_cli_argv_empty_list_uses_defaults():
+    tick = [0.0]
+
+    def fake_timer() -> float:
+        tick[0] += 0.001
+        return tick[0]
+
+    s = Scenario(lambda: None, name='default_test', number=5, timer=fake_timer)
+
+    captured: list[str] = []
+    original_write = sys.stdout.write
+
+    def capture_write(text: str) -> int:
+        captured.append(text)
+        return len(text)
+
+    sys.stdout.write = capture_write  # type: ignore[method-assign]
+    try:
+        s.cli(argv=[])
+    finally:
+        sys.stdout.write = original_write  # type: ignore[method-assign]
+
+    combined = ''.join(captured)
+    assert 'default_test' in combined
+
+
+# ---------------------------------------------------------------------------
+# --histogram argument
+# ---------------------------------------------------------------------------
+
+
+def test_histogram_flag_produces_block_chars():
+    proc = run_script(scenario_script(), '--histogram')
+
+    assert '█' in proc.stdout
+
+
+def test_histogram_flag_still_shows_name():
+    proc = run_script(scenario_script(), '--histogram')
+
+    assert 'benchmark: bench' in proc.stdout
+
+
+def test_histogram_flag_exit_0():
+    proc = run_script(scenario_script(), '--histogram')
+
+    assert proc.returncode == 0
+
+
+def test_histogram_and_max_mean_combined():
+    proc = run_script(scenario_script(), '--histogram', '--max-mean', '10.0')
+
+    assert proc.returncode == 0
+    assert '█' in proc.stdout

@@ -3,14 +3,23 @@ from __future__ import annotations
 import argparse
 import sys
 
+from microbenchmark._render import (
+    draw_box,
+    draw_histogram,
+    draw_histogram_axis,
+    draw_nested,
+    histogram_bounds,
+    terminal_width,
+)
 from microbenchmark.benchmark_result import BenchmarkResult
-from microbenchmark.scenario import Scenario, _print_result
+from microbenchmark.scenario import Scenario, _render_result
 
 
 class _CliArgs:
     def __init__(self) -> None:
         self.number: int | None = None
         self.max_mean: float | None = None
+        self.histogram: bool = False
 
 
 class ScenarioGroup:
@@ -20,13 +29,15 @@ class ScenarioGroup:
     def run(self, warmup: int = 0) -> list[BenchmarkResult]:
         return [s.run(warmup=warmup) for s in self._scenarios]
 
-    def cli(self) -> None:
+    def cli(self, argv: list[str] | None = None) -> None:
         parser = argparse.ArgumentParser(description='Run benchmark group')
         parser.add_argument('--number', type=int, default=None, help='Number of iterations')
         parser.add_argument('--max-mean', type=float, default=None, dest='max_mean',
                             help='Fail if any scenario mean time (seconds) exceeds this threshold')
+        parser.add_argument('--histogram', action='store_true', default=False,
+                            help='Append an ASCII histogram of per-call timings')
         cli_args = _CliArgs()
-        parser.parse_args(namespace=cli_args)
+        parser.parse_args(argv, namespace=cli_args)
 
         scenarios = self._scenarios
         if cli_args.number is not None:
@@ -35,12 +46,30 @@ class ScenarioGroup:
                 for s in self._scenarios
             ]
 
-        failed = False
-        for i, scenario in enumerate(scenarios):
+        if not scenarios:
+            return
+
+        width = terminal_width()
+        inner_width = width - 4  # inner blocks are width-4 wide
+        inner_blocks: list[list[str]] = []
+        results: list[BenchmarkResult] = []
+        for scenario in scenarios:
             result = scenario.run()
-            _print_result(result)
-            if i < len(scenarios) - 1:
-                sys.stdout.write('---\n')
+            results.append(result)
+            lines = _render_result(result)
+            if cli_args.histogram:
+                hist_width = inner_width - 4
+                lines.append('')
+                lines.extend(draw_histogram(list(result.durations), hist_width, 8))
+                lo, hi = histogram_bounds(result.durations)
+                lines.append(draw_histogram_axis(lo, hi, hist_width))
+            inner_blocks.append(draw_box(lines, inner_width))
+
+        nested = draw_nested(inner_blocks, [], width)
+        sys.stdout.write('\n'.join(nested) + '\n')
+
+        failed = False
+        for result in results:
             if cli_args.max_mean is not None and result.mean > cli_args.max_mean:
                 sys.stdout.write(
                     f'FAIL: mean {result.mean:.6f}s exceeds --max-mean {cli_args.max_mean:.6f}s\n',

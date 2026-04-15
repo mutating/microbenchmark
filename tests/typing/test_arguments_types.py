@@ -77,3 +77,22 @@ def test_a_creates_arguments_instance():
 def test_arguments_repr_is_str():
     args = arguments(1, 2, key='value')
     reveal_type(repr(args))  # N: Revealed type is "builtins.str"
+
+
+# ---------------------------------------------------------------------------
+# Positive: match() returns bool
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.mypy_testing
+def test_arguments_match_returns_bool():
+    args = arguments(1, 2)
+    result = args.match(lambda _a, _b: None)
+    reveal_type(result)  # N: Revealed type is "builtins.bool"
+
+
+@pytest.mark.mypy_testing
+def test_arguments_match_accepts_any_callable():
+    args = arguments(1)
+    args.match(lambda _a: None)
+    args.match(len)

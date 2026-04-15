@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import textwrap
+
+from microbenchmark import Scenario, ScenarioGroup
+
+_UTF8_ENV = {**os.environ, 'PYTHONUTF8': '1'}
 
 
 def run_script(script: str, *args: str, timeout: int = 30) -> subprocess.CompletedProcess[str]:
@@ -13,6 +18,7 @@ def run_script(script: str, *args: str, timeout: int = 30) -> subprocess.Complet
         encoding='utf-8',
         timeout=timeout,
         check=False,
+        env=_UTF8_ENV,
     )
 
 
@@ -124,6 +130,26 @@ def doc_group_script() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Border output
+# ---------------------------------------------------------------------------
+
+
+def test_group_cli_has_outer_border():
+    proc = run_script(group_script())
+
+    assert '╭' in proc.stdout
+    assert '╰' in proc.stdout
+
+
+def test_group_cli_has_nested_inner_borders():
+    proc = run_script(group_script())
+
+    # outer border + 2 inner borders = at least 3 of each
+    assert proc.stdout.count('╭') >= 3
+    assert proc.stdout.count('╰') >= 3
+
+
+# ---------------------------------------------------------------------------
 # Basic output
 # ---------------------------------------------------------------------------
 
@@ -135,18 +161,19 @@ def test_outputs_both_scenario_names():
     assert 'benchmark: second' in proc.stdout
 
 
-def test_results_separated_by_divider():
+def test_results_separated_by_inner_boxes():
     proc = run_script(group_script())
 
-    assert '---' in proc.stdout
+    # Two scenarios produce two inner boxes plus one outer box = at least 3 ╭
+    assert proc.stdout.count('╭') >= 3
 
 
-def test_divider_between_not_after_last():
+def test_outer_box_present():
     proc = run_script(group_script())
 
-    assert proc.stdout.count('---\n') == 1
+    # Output ends with the outer bottom border
     lines = proc.stdout.strip().splitlines()
-    assert lines[-1] != '---'
+    assert lines[-1].startswith('╰')
 
 
 def test_exit_code_0_by_default():
@@ -158,9 +185,9 @@ def test_exit_code_0_by_default():
 def test_outputs_mean_best_worst_for_each():
     proc = run_script(group_script())
     lines = proc.stdout.splitlines()
-    mean_lines = [line for line in lines if line.startswith('mean:')]
-    best_lines = [line for line in lines if line.startswith('best:')]
-    worst_lines = [line for line in lines if line.startswith('worst:')]
+    mean_lines = [line for line in lines if 'mean:' in line and 'p95' not in line and 'p99' not in line]
+    best_lines = [line for line in lines if 'best:' in line]
+    worst_lines = [line for line in lines if 'worst:' in line]
 
     assert len(mean_lines) == 2
     assert len(best_lines) == 2
@@ -209,6 +236,19 @@ def test_cli_shows_p99_mean_for_each():
     assert proc.stdout.count('p99 mean:') == 2
 
 
+def test_cli_shows_total_for_each():
+    proc = run_script(group_script())
+    total_lines = [line for line in proc.stdout.splitlines() if 'total:' in line and 'fn total:' not in line]
+
+    assert len(total_lines) == 2
+
+
+def test_cli_shows_fn_total_for_each():
+    proc = run_script(group_script())
+
+    assert proc.stdout.count('fn total:') == 2
+
+
 def test_cli_shows_doc_when_present():
     proc = run_script(doc_group_script())
 
@@ -249,6 +289,18 @@ def test_number_arg_accepted():
 
     assert proc.returncode == 0
     assert 'benchmark: first' in proc.stdout
+
+
+def test_number_zero_fails():
+    proc = run_script(group_script(), '--number', '0')
+
+    assert proc.returncode != 0
+
+
+def test_number_negative_fails():
+    proc = run_script(group_script(), '--number', '-1')
+
+    assert proc.returncode != 0
 
 
 # ---------------------------------------------------------------------------
@@ -321,6 +373,13 @@ def test_help_does_not_run_benchmark():
     assert 'benchmark:' not in proc.stdout
 
 
+def test_help_mentions_histogram():
+    proc = run_script(group_script(), '--help')
+    combined = proc.stdout + proc.stderr
+
+    assert '--histogram' in combined
+
+
 # ---------------------------------------------------------------------------
 # Empty group
 # ---------------------------------------------------------------------------
@@ -344,13 +403,78 @@ def test_empty_group_no_output():
 # ---------------------------------------------------------------------------
 
 
-def test_single_scenario_no_divider():
+def test_single_scenario_three_boxes():
     proc = run_script(single_scenario_script())
 
-    assert '---' not in proc.stdout
+    # 1 inner box + 1 outer box = 2 ╭ chars
+    assert proc.stdout.count('╭') == 2
 
 
-def test_three_scenarios_two_dividers():
+def test_three_scenarios_four_boxes():
     proc = run_script(three_scenario_script())
 
-    assert proc.stdout.count('---') == 2
+    # 3 inner boxes + 1 outer box = 4 ╭ chars
+    assert proc.stdout.count('╭') == 4
+
+
+# ---------------------------------------------------------------------------
+# cli(argv=...) parameter
+# ---------------------------------------------------------------------------
+
+
+def test_group_cli_argv_number_forwarded():
+    tick = [0.0]
+
+    def fake_timer() -> float:
+        tick[0] += 0.001
+        return tick[0]
+
+    s = Scenario(lambda: None, name='g_test', number=10, timer=fake_timer)
+    grp = ScenarioGroup(s)
+
+    captured: list[str] = []
+    original_write = sys.stdout.write
+
+    def capture_write(text: str) -> int:
+        captured.append(text)
+        return len(text)
+
+    sys.stdout.write = capture_write  # type: ignore[method-assign]
+    try:
+        grp.cli(argv=['--number', '3'])
+    finally:
+        sys.stdout.write = original_write  # type: ignore[method-assign]
+
+    combined = ''.join(captured)
+    assert 'g_test' in combined
+
+
+# ---------------------------------------------------------------------------
+# --histogram argument
+# ---------------------------------------------------------------------------
+
+
+def test_group_histogram_flag_produces_block_chars():
+    proc = run_script(group_script(), '--histogram')
+
+    assert '█' in proc.stdout
+
+
+def test_group_histogram_flag_still_shows_names():
+    proc = run_script(group_script(), '--histogram')
+
+    assert 'benchmark: first' in proc.stdout
+    assert 'benchmark: second' in proc.stdout
+
+
+def test_group_histogram_flag_exit_0():
+    proc = run_script(group_script(), '--histogram')
+
+    assert proc.returncode == 0
+
+
+def test_group_histogram_and_max_mean_combined():
+    proc = run_script(group_script(), '--histogram', '--max-mean', '10.0')
+
+    assert proc.returncode == 0
+    assert '█' in proc.stdout

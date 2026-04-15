@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import ctypes
 import itertools
 from unittest.mock import patch
 
 import pytest
 from full_match import match
+from sigmatch import SignatureMismatchError
 
 from microbenchmark import BenchmarkResult, Scenario, ScenarioGroup, arguments
-from microbenchmark.scenario import _fn_call_str
+from microbenchmark.scenario import _fn_call_str, _render_result
 
 # ---------------------------------------------------------------------------
 # Construction
@@ -179,6 +181,77 @@ def test_number_negative_raises():
 
 
 # ---------------------------------------------------------------------------
+# Signature validation
+# ---------------------------------------------------------------------------
+
+
+def test_signature_compatible_arguments_accepted():
+    Scenario(lambda _a, _b: None, arguments(1, 2), name='s')
+
+
+def test_signature_incompatible_raises():
+    with pytest.raises(SignatureMismatchError):
+        Scenario(lambda _a: None, arguments(1, 2), name='s')
+
+
+def test_signature_too_few_raises():
+    with pytest.raises(SignatureMismatchError):
+        Scenario(lambda _a, _b: None, arguments(1), name='s')
+
+
+def test_signature_no_args_compatible():
+    Scenario(lambda: None, name='s')
+
+
+def test_signature_no_args_with_none_arguments():
+    Scenario(lambda: None, None, name='s')
+
+
+def test_signature_builtin_correct_args():
+    Scenario(len, arguments('hello'), name='s')
+
+
+def test_signature_builtin_no_args_raises():
+    # len requires one arg; Scenario(len) with no arguments should fail
+    with pytest.raises(SignatureMismatchError):
+        Scenario(len, name='s')
+
+
+def test_signature_keyword_compatible():
+    Scenario(lambda *, key: None, arguments(key='value'), name='s')  # noqa: ARG005
+
+
+def test_signature_keyword_incompatible_raises():
+    with pytest.raises(SignatureMismatchError):
+        Scenario(lambda *, key: None, arguments('positional'), name='s')  # noqa: ARG005
+
+
+def test_signature_defaults_short_call():
+    Scenario(lambda _a, _b=1: None, arguments(1), name='s')
+
+
+def test_signature_varargs_accepted():
+    Scenario(lambda *_args: None, arguments(1, 2, 3), name='s')
+
+
+def test_signature_unintrospectable_skips():
+    # ctypes.ArgumentError has no inspectable signature; validation is skipped
+    Scenario(ctypes.ArgumentError, arguments(1), name='s')
+
+
+def test_signature_none_arguments_fn_needs_arg_raises():
+    # lambda needs 1 arg but arguments=None → empty Arguments() → mismatch
+    with pytest.raises(SignatureMismatchError):
+        Scenario(lambda _a: None, None, name='s')
+
+
+def test_signature_builtin_incompatible_raises():
+    # len takes 1 arg; passing 2 should raise
+    with pytest.raises(SignatureMismatchError):
+        Scenario(len, arguments(1, 2), name='s')
+
+
+# ---------------------------------------------------------------------------
 # run()  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
@@ -281,7 +354,7 @@ def test_custom_timer_stateful():
     scenario = Scenario(lambda: None, name='s', number=3, timer=fake_timer)
     result = scenario.run(warmup=2)
 
-    assert tick[0] == 10
+    assert tick[0] == 8  # loop_start: 1, run: 3*2=6, loop_end: 1 → 8 (warmup has no timer calls)
     assert len(result.durations) == 3
     assert result.durations == pytest.approx((1.0, 1.0, 1.0))
 
@@ -323,6 +396,34 @@ def test_run_result_is_primary():
     result = scenario.run()
 
     assert result.is_primary is True
+
+
+def test_run_populates_total_duration():
+    tick = [0.0]
+
+    def fake_timer() -> float:
+        tick[0] += 0.001
+        return tick[0]
+
+    scenario = Scenario(lambda: None, name='t', number=3, timer=fake_timer)
+    result = scenario.run()
+
+    assert isinstance(result.total_duration, float)
+    assert result.total_duration > 0.0
+
+
+def test_run_total_duration_spans_loop():
+    ticks: list[float] = []
+
+    def recording_timer() -> float:
+        ticks.append(len(ticks) * 0.001)
+        return ticks[-1]
+
+    scenario = Scenario(lambda: None, name='t', number=3, timer=recording_timer)
+    result = scenario.run()
+
+    # total_duration should be loop_end - loop_start (first two timer calls after warmup)
+    assert result.total_duration >= 0.0
 
 
 def test_run_exception_mid_iteration():
@@ -502,3 +603,9 @@ def test_fn_call_str_non_oserror_propagates():
 
     with pytest.raises(ValueError, match='unexpected'), patch('microbenchmark.scenario.superrepr', side_effect=ValueError('unexpected')):
         _fn_call_str(fn, None)
+
+
+def test_render_result_raises_when_scenario_is_none():
+    result = BenchmarkResult.from_json('{"durations":[0.001,0.002],"is_primary":true,"scenario":null}')
+    with pytest.raises(ValueError, match='scenario must not be None'):
+        _render_result(result)

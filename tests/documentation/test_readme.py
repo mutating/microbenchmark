@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+import json
 import math
+import os
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
 
 import pytest
 from full_match import match
+from sigmatch import SignatureMismatchError
 
 from microbenchmark import BenchmarkResult, Scenario, ScenarioGroup, a, arguments
+
+_UTF8_ENV = {**os.environ, 'PYTHONUTF8': '1'}
 
 # ---------------------------------------------------------------------------
 # Quick start
@@ -78,6 +87,67 @@ def test_a_alias_creates_arguments():
     instance = a(1, 2, key='v')
 
     assert isinstance(instance, arguments)
+
+
+# ---------------------------------------------------------------------------
+# arguments — match method
+# ---------------------------------------------------------------------------
+
+
+def test_arguments_match_positional_compatible():
+    args = arguments(1, 2)
+
+    assert args.match(lambda _a, _b: None) is True
+
+
+def test_arguments_match_positional_incompatible():
+    args = arguments(1, 2)
+
+    assert args.match(lambda _a: None) is False
+
+
+def test_arguments_match_keyword_compatible():
+    args = arguments(key='value')
+
+    assert args.match(lambda *, key: None) is True  # noqa: ARG005
+
+
+def test_arguments_match_keyword_incompatible():
+    args = arguments(key='value')
+
+    assert args.match(lambda: None) is False
+
+
+def test_arguments_match_builtin_correct_args():
+    args = arguments('hello')
+
+    assert args.match(len) is True
+
+
+def test_arguments_match_builtin_wrong_arg_count():
+    args = arguments(1, 2)
+
+    assert args.match(len) is False
+
+
+# ---------------------------------------------------------------------------
+# Scenario — signature validation
+# ---------------------------------------------------------------------------
+
+
+def test_scenario_signature_mismatch_raises():
+    caught: list[SignatureMismatchError] = []
+    try:
+        Scenario(lambda _a: None, arguments(1, 2))
+    except SignatureMismatchError as e:
+        caught.append(e)
+
+    assert len(caught) == 1
+    assert 'incompatible' in str(caught[0])
+
+
+def test_scenario_signature_compatible_accepted():
+    Scenario(lambda _a, _b: None, arguments(1, 2))
 
 
 def test_a_alias_usage_in_scenario():
@@ -429,3 +499,147 @@ def test_json_round_trip_median_preserved():
     restored = BenchmarkResult.from_json(json_str)
 
     assert restored.median == result.median
+
+
+# ---------------------------------------------------------------------------
+# total_duration and functions_duration
+# ---------------------------------------------------------------------------
+
+
+def test_total_duration_is_float():
+    result = Scenario(lambda: None, name='noop', number=100).run()
+
+    assert isinstance(result.total_duration, float)
+
+
+def test_functions_duration_is_float():
+    result = Scenario(lambda: None, name='noop', number=100).run()
+
+    assert isinstance(result.functions_duration, float)
+
+
+def test_from_json_backward_compat_without_total_duration():
+    payload = json.dumps({'durations': [0.1, 0.2], 'is_primary': True})
+    restored = BenchmarkResult.from_json(payload)
+
+    assert isinstance(restored.total_duration, float)
+
+
+# ---------------------------------------------------------------------------
+# Borders in CLI output
+# ---------------------------------------------------------------------------
+
+
+def test_scenario_cli_output_has_top_border():
+    tick = [0.0]
+
+    def fake_timer() -> float:
+        tick[0] += 0.001
+        return tick[0]
+
+    s = Scenario(lambda: None, name='noop', number=5, timer=fake_timer)
+    captured: list[str] = []
+    original_write = sys.stdout.write
+
+    def capture_write(text: str) -> int:
+        captured.append(text)
+        return len(text)
+
+    sys.stdout.write = capture_write  # type: ignore[method-assign]
+    try:
+        s.cli(argv=[])
+    finally:
+        sys.stdout.write = original_write  # type: ignore[method-assign]
+
+    combined = ''.join(captured)
+    assert '╭' in combined
+    assert '╰' in combined
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point
+# ---------------------------------------------------------------------------
+
+
+def test_cli_entry_scenario_runs():
+    project_root = str(Path(__file__).parent.parent.parent)
+    proc = subprocess.run(
+        [sys.executable, '-m', 'microbenchmark', 'tests.cli.fixtures.sample:scenario', '--number', '3'],
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        timeout=30,
+        check=False,
+        cwd=project_root,
+        env=_UTF8_ENV,
+    )
+
+    assert proc.returncode == 0
+    assert 'sample' in proc.stdout
+
+
+def test_cli_entry_group_runs():
+    project_root = str(Path(__file__).parent.parent.parent)
+    proc = subprocess.run(
+        [sys.executable, '-m', 'microbenchmark', 'tests.cli.fixtures.sample:group', '--number', '3'],
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        timeout=30,
+        check=False,
+        cwd=project_root,
+        env=_UTF8_ENV,
+    )
+
+    assert proc.returncode == 0
+    assert proc.stdout.strip() != ''
+
+
+def test_cli_entry_bad_target_exit_3():
+    project_root = str(Path(__file__).parent.parent.parent)
+    proc = subprocess.run(
+        [sys.executable, '-m', 'microbenchmark', 'no_colon_here'],
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        timeout=30,
+        check=False,
+        cwd=project_root,
+        env=_UTF8_ENV,
+    )
+
+    assert proc.returncode == 3
+
+
+# ---------------------------------------------------------------------------
+# --histogram flag
+# ---------------------------------------------------------------------------
+
+
+def test_scenario_cli_histogram_produces_block_chars():
+    script = textwrap.dedent(f'''
+        import sys
+        sys.path.insert(0, {str(Path(__file__).parent.parent.parent)!r})
+        from microbenchmark import Scenario
+
+        tick = [0.0]
+        def fake_timer():
+            tick[0] += 0.001
+            return tick[0]
+
+        s = Scenario(lambda: None, name='readme_hist', number=10, timer=fake_timer)
+        s.cli(['--histogram'])
+    ''')
+    proc = subprocess.run(
+        [sys.executable, '-c', script],
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        timeout=30,
+        check=False,
+        env=_UTF8_ENV,
+    )
+
+    assert proc.returncode == 0
+    assert '█' in proc.stdout
+    assert '╭' in proc.stdout
